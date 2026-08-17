@@ -1,0 +1,22 @@
+# 依赖与构建产物
+node_modules/
+dist/
+target/
+
+# 环境变量(含地图密钥,严禁提交)
+.env
+.env.local
+.env.*.local
+
+# 本地数据库(H2 文件库)
+backend/data/
+
+# 日志与临时文件
+*.log
+*.tmp
+
+# IDE / 工具缓存
+.idea/
+.vscode/
+.codegraph/
+.claude/

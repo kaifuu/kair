@@ -1,0 +1,145 @@
+/* ===== 无人机监管平台 · DIFY 风亮色科技蓝主题 ===== */
+:root {
+  /* 色板 */
+  --bg: #f3f5f9;
+  --bg-2: #eef2f7;
+  --panel: #ffffff;
+  --panel-solid: #ffffff;
+  --border: #e4eaf2;
+  --border-strong: #d4dde9;
+  --text: #101828;
+  --text-dim: #667085;
+  --text-faint: #98a2b3;
+  --primary: #155eef;
+  --primary-2: #0ea5e9;
+  --primary-soft: #eff6ff;
+  --success: #12b76a;
+  --warning: #f79009;
+  --danger: #f04438;
+  --purple: #7c3aed;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 16px 40px -8px rgba(21, 94, 239, 0.18);
+
+  /* Element Plus 变量覆盖 */
+  --el-color-primary: #155eef;
+  --el-color-primary-light-3: #5b8def;
+  --el-color-primary-light-5: #93b3f5;
+  --el-color-primary-light-7: #c7d9fb;
+  --el-color-primary-light-8: #e0ebfd;
+  --el-color-primary-light-9: #eff6ff;
+  --el-color-success: #12b76a;
+  --el-color-warning: #f79009;
+  --el-color-danger: #f04438;
+  --el-color-error: #f04438;
+  --el-border-radius-base: 8px;
+  --el-font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #app { height: 100%; width: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--el-font-family);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #cbd5e4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== 通用卡片 ===== */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 14px 16px 10px;
+  color: var(--text);
+}
+
+.panel-title::before {
+  content: '';
+  width: 4px; height: 16px;
+  background: linear-gradient(180deg, var(--primary), var(--primary-2));
+  border-radius: 2px;
+}
+
+/* ===== 数字 ===== */
+.glow-num {
+  font-family: 'DIN Alternate', 'Bahnschrift', 'Segoe UI', sans-serif;
+  font-weight: 700;
+  background: linear-gradient(135deg, #1d2939 20%, #155eef 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ===== 表格 ===== */
+.el-table {
+  --el-table-header-bg-color: #f7f9fc;
+  --el-table-header-text-color: #475467;
+  --el-table-row-hover-bg-color: #f0f6ff;
+  --el-table-border-color: #eef2f7;
+  --el-table-text-color: #344054;
+}
+.el-table th.el-table__cell { font-weight: 600; }
+
+/* ===== 弹窗 ===== */
+.el-dialog {
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.el-dialog__title { color: var(--text); font-weight: 600; }
+
+/* ===== 按钮 ===== */
+.el-button--primary {
+  --el-button-bg-color: #155eef;
+  --el-button-border-color: #155eef;
+  --el-button-hover-bg-color: #3b74f1;
+  --el-button-hover-border-color: #3b74f1;
+}
+
+/* ===== 分页 ===== */
+.el-pagination { --el-pagination-bg-color: transparent; }
+
+/* ===== 动画 ===== */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up { animation: fade-in-up 0.35s ease both; }
+
+/* 页面容器 */
+.page { height: 100%; overflow: auto; padding: 18px; }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.page-title { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; }
