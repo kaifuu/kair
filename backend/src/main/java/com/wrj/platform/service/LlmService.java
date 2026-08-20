@@ -10,6 +10,7 @@ import com.wrj.platform.repository.LlmModelRepository;
 import com.wrj.platform.repository.LlmUsageLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,10 @@ public class LlmService {
     private final LlmModelRepository modelRepository;
     private final LlmUsageLogRepository usageRepository;
     private final AtomicLong insertCounter = new AtomicLong();
+
+    /** 环境变量回落密钥(ai.api-key ← LLM_API_KEY,放 backend/.env,不入库不入仓) */
+    @Value("${ai.api-key:}")
+    private String envApiKey;
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -112,8 +117,9 @@ public class LlmService {
                     .header("Content-Type", "application/json")
                     .header("Accept", "text/event-stream")
                     .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body), StandardCharsets.UTF_8));
-            if (model.getApiKey() != null && !model.getApiKey().isBlank()) {
-                rb.header("Authorization", "Bearer " + model.getApiKey());
+            String apiKey = resolveKey(model);
+            if (!apiKey.isBlank()) {
+                rb.header("Authorization", "Bearer " + apiKey);
             }
             HttpResponse<java.io.InputStream> resp = http.send(rb.build(),
                     HttpResponse.BodyHandlers.ofInputStream());
@@ -208,8 +214,9 @@ public class LlmService {
                     .timeout(Duration.ofSeconds(params.path("timeoutSeconds").asInt(60)))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body), StandardCharsets.UTF_8));
-            if (model.getApiKey() != null && !model.getApiKey().isBlank()) {
-                rb.header("Authorization", "Bearer " + model.getApiKey());
+            String apiKey = resolveKey(model);
+            if (!apiKey.isBlank()) {
+                rb.header("Authorization", "Bearer " + apiKey);
             }
             HttpResponse<String> resp = http.send(rb.build(), HttpResponse.BodyHandlers.ofString());
             long cost = System.currentTimeMillis() - start;
@@ -230,6 +237,12 @@ public class LlmService {
                     System.currentTimeMillis() - start, "FAIL", msg);
             throw new IllegalArgumentException("调用失败: " + msg);
         }
+    }
+
+    /** 密钥优先级:「模型配置」页保存的密钥 > 环境变量 LLM_API_KEY(backend/.env) */
+    private String resolveKey(LlmModel model) {
+        if (model.getApiKey() != null && !model.getApiKey().isBlank()) return model.getApiKey();
+        return envApiKey == null ? "" : envApiKey.trim();
     }
 
     private LlmModel resolveModel(Long modelId) {

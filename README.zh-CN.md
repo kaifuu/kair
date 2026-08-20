@@ -43,7 +43,7 @@
 
 ## AI 能力
 
-LLM 功能基于任意 **OpenAI 兼容对话接口**(以通义千问 Qwen 的 DashScope compatible-mode 开发验证)。API Key 在 **模型配置** 页维护、仅存数据库——**不进代码仓库**,接口返回一律脱敏(`******`)。
+LLM 功能基于任意 **OpenAI 兼容对话接口**(以通义千问 Qwen 的 DashScope compatible-mode 开发验证)。API Key 推荐放在 `backend/.env`(复制 `backend/.env.example` 填写 `LLM_API_KEY`,该文件已被 gitignore);「模型配置」页保存的密钥优先级更高。密钥**不进代码仓库**,接口返回一律脱敏(`******`)。
 
 | 功能 | 说明 |
 |------|------|
@@ -55,6 +55,7 @@ LLM 功能基于任意 **OpenAI 兼容对话接口**(以通义千问 Qwen 的 Da
 ```yaml
 # backend/src/main/resources/application.yml
 ai:
+  api-key: ${LLM_API_KEY:}      # 密钥回落,取自 backend/.env
   enabled: true
   alert-assess: true            # 告警产生后自动异步研判
   report-cron: "0 36 7 * * *"   # 态势日报
@@ -116,8 +117,8 @@ npm run dev
 访问 **http://localhost:5174**,登录账号 **admin / admin123**。
 
 > 地图密钥推荐登录后在「地图管理」页维护(服务端持久化);
-> 也可用环境变量为后端提供回落值:`MAP_BAIDU_AK / MAP_AMAP_KEY / MAP_AMAP_SEC / MAP_TDT_KEY`。
-> LLM:在「模型配置」页填写 base URL / 模型代号 / API Key。不配置也不影响平台其它功能,仅 AI 功能不可用。
+> 也可用环境变量为后端提供回落值(`MAP_BAIDU_AK / MAP_AMAP_KEY / MAP_AMAP_SEC / MAP_TDT_KEY`,可写在 `backend/.env`)。
+> LLM:复制 `backend/.env.example` 为 `backend/.env` 并填入 `LLM_API_KEY`(base URL / 模型代号在「模型配置」页维护,页内保存的密钥优先于环境变量)。不配置也不影响平台其它功能,仅 AI 功能不可用。
 
 ### 地图密钥说明
 
@@ -186,6 +187,7 @@ WS   /ws/telemetry                       实时推送 {type, payload, ts}
 
 ```
 ├── backend/                        # Spring Boot 后端
+│   ├── .env.example                # 环境变量模板:LLM_API_KEY + MAP_* 回落密钥
 │   ├── scripts/                    # 零依赖工具脚本
 │   │   ├── device-simulator.mjs    # 设备接入模拟器(三模式)
 │   │   ├── probe-register.mjs      # 注册探测

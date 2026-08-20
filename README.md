@@ -43,7 +43,7 @@ Built with **Vue 3 + Spring Boot 3 + PostgreSQL/PostGIS**, a **switchable multi-
 
 ## AI Capabilities
 
-LLM features are powered by any **OpenAI-compatible chat API** (developed & tested with Qwen via DashScope compatible-mode). The API key is configured on the **Model Config** page and stored in the database only — it never enters the repo, and is masked (`******`) in API responses.
+LLM features are powered by any **OpenAI-compatible chat API** (developed & tested with Qwen via DashScope compatible-mode). Put your API key in `backend/.env` as `LLM_API_KEY` (copy `backend/.env.example`; the file is git-ignored). A key saved on the **Model Config** page takes priority over the env var; keys are masked (`******`) in API responses and never enter the repo.
 
 | Feature | Description |
 |---------|-------------|
@@ -55,6 +55,7 @@ LLM features are powered by any **OpenAI-compatible chat API** (developed & test
 ```yaml
 # backend/src/main/resources/application.yml
 ai:
+  api-key: ${LLM_API_KEY:}      # key fallback from backend/.env
   enabled: true
   alert-assess: true            # async AI assessment on every new alert
   report-cron: "0 36 7 * * *"   # daily situation report
@@ -116,8 +117,8 @@ npm run dev
 Open **http://localhost:5174** and log in with **admin / admin123**.
 
 > Map keys: recommended to configure on the **Map Admin** page after login (persisted server-side).
-> Fallback env vars for the backend: `MAP_BAIDU_AK / MAP_AMAP_KEY / MAP_AMAP_SEC / MAP_TDT_KEY`.
-> LLM: configure on the **Model Config** page (base URL / model code / API key). No key, no problem — everything except the AI features works without it.
+> Fallback env vars for the backend (`MAP_BAIDU_AK / MAP_AMAP_KEY / MAP_AMAP_SEC / MAP_TDT_KEY`) can also go into `backend/.env`.
+> LLM: `cp backend/.env.example backend/.env` and set `LLM_API_KEY` (base URL / model code are managed on the **Model Config** page, where a per-model key may also be saved — it overrides the env var). No key, no problem — everything except the AI features works without it.
 
 ### Map provider keys
 
@@ -186,6 +187,7 @@ WS   /ws/telemetry                       live push {type, payload, ts}
 
 ```
 ├── backend/                        # Spring Boot backend
+│   ├── .env.example                # env template: LLM_API_KEY + MAP_* fallbacks
 │   ├── scripts/                    # zero-dependency tools
 │   │   ├── device-simulator.mjs    # device access simulator (3 modes)
 │   │   ├── probe-register.mjs      # registration probe

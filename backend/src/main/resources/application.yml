@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: wrj-platform
+  # 后端环境变量:backend/.env(gitignore,不入库),如 LLM_API_KEY / MAP_* 密钥
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://localhost:5432/wrj
     driver-class-name: org.postgresql.Driver
@@ -50,8 +53,9 @@ map-keys:
 auth:
   token-ttl-hours: 12
 
-# AI 助手(大模型配置在「系统设置-模型配置」中维护,密钥只存数据库不入代码)
+# AI 助手(模型 base_url/代号在「系统设置-模型配置」维护;密钥优先级:模型配置页 > 环境变量 LLM_API_KEY)
 ai:
+  api-key: ${LLM_API_KEY:}
   enabled: true
   alert-assess: true      # 告警产生后自动异步研判(写回 aiAdvice)
   report-cron: "0 36 7 * * *"   # 态势日报每日 07:36 自动生成并发站内信
