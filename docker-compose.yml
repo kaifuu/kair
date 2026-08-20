@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: wrj-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wrj
+      POSTGRES_USER: wrj
+      POSTGRES_PASSWORD: wrj123
+    ports:
+      - "5432:5432"
+    volumes:
+      - wrj_pgdata:/var/lib/postgresql/data
+      - ./backend/sql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wrj -d wrj"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  wrj_pgdata:

@@ -15,7 +15,13 @@ public class Alert {
         LOW_BATTERY,         // 低电量
         SIGNAL_LOST,         // 失联
         NO_LICENSE,          // 黑飞(无任务飞行)
-        TASK_OVERDUE         // 超时未归
+        TASK_OVERDUE,        // 超时未归
+        // ----- AI 增强:轨迹预测/冲突/异常检测 -----
+        PREDICTED_BREACH,    // 预测即将闯入禁飞区
+        CONFLICT_ALERT,      // 多机接近冲突
+        BATTERY_ANOMALY,     // 电量骤降异常
+        ALTITUDE_JUMP,       // 高度突变
+        SIGNAL_WEAK          // 卫星信号弱
     }
 
     @Id
@@ -29,8 +35,8 @@ public class Alert {
     private Level level;
 
     @ManyToOne
-    @JoinColumn(name = "drone_id")
-    private Drone drone;
+    @JoinColumn(name = "device_id")
+    private Device device;
 
     @ManyToOne
     @JoinColumn(name = "task_id")
@@ -47,16 +53,20 @@ public class Alert {
     private String handler;
     private LocalDateTime handleTime;
 
+    /** AI 研判结论(原因分析 + 处置建议,LLM 异步生成) */
+    @Column(columnDefinition = "text")
+    private String aiAdvice;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public Alert() {
     }
 
-    public Alert(Type type, Level level, Drone drone, FlightTask task, String message,
+    public Alert(Type type, Level level, Device device, FlightTask task, String message,
                  Double lng, Double lat, Double altitude) {
         this.type = type;
         this.level = level;
-        this.drone = drone;
+        this.device = device;
         this.task = task;
         this.message = message;
         this.lng = lng;
@@ -73,8 +83,8 @@ public class Alert {
     public Level getLevel() { return level; }
     public void setLevel(Level level) { this.level = level; }
 
-    public Drone getDrone() { return drone; }
-    public void setDrone(Drone drone) { this.drone = drone; }
+    public Device getDevice() { return device; }
+    public void setDevice(Device device) { this.device = device; }
 
     public FlightTask getTask() { return task; }
     public void setTask(FlightTask task) { this.task = task; }
@@ -96,6 +106,9 @@ public class Alert {
 
     public String getHandler() { return handler; }
     public void setHandler(String handler) { this.handler = handler; }
+
+    public String getAiAdvice() { return aiAdvice; }
+    public void setAiAdvice(String aiAdvice) { this.aiAdvice = aiAdvice; }
 
     public LocalDateTime getHandleTime() { return handleTime; }
     public void setHandleTime(LocalDateTime handleTime) { this.handleTime = handleTime; }

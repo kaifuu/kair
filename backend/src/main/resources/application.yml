@@ -5,10 +5,10 @@ spring:
   application:
     name: wrj-platform
   datasource:
-    url: jdbc:h2:file:./data/wrj;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
+    url: jdbc:postgresql://localhost:5432/wrj
+    driver-class-name: org.postgresql.Driver
+    username: wrj
+    password: wrj123
   jpa:
     hibernate:
       ddl-auto: update
@@ -16,10 +16,6 @@ spring:
     properties:
       hibernate:
         format_sql: false
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -27,3 +23,49 @@ spring:
 logging:
   level:
     com.wrj: info
+
+# 设备接入网关(Netty TCP)
+device:
+  gateway:
+    enabled: true
+    port: 9527            # 标准 AA55+TLV 二进制帧
+    dtu-port: 9528        # RS232/RS485 经 DTU 透传(文本/定长帧,回车换行分隔)
+    modbus-port: 9529     # PLC Modbus TCP(MBAP + 功能码 03/04/10)
+    heartbeat-timeout-seconds: 75
+    max-frame-length: 8192
+  # 设备事件落库线程数(解析后的 JPA 写入;设备量大时可调大)
+  db-threads: 4
+  # 报文日志:心跳默认不入库(防冲掉有价值的 DATA/COMMAND 记录),全局保留条数
+  message-log:
+    log-heartbeat: false
+    keep: 500
+
+# 地图密钥缺省值:「地图管理」页保存后以 sys_config 为准,此处仅作未保存时的回落(可环境变量注入)
+map-keys:
+  baidu-ak: ${MAP_BAIDU_AK:}
+  amap-key: ${MAP_AMAP_KEY:}
+  amap-sec: ${MAP_AMAP_SEC:}
+  tdt-key: ${MAP_TDT_KEY:}
+
+auth:
+  token-ttl-hours: 12
+
+# AI 助手(大模型配置在「系统设置-模型配置」中维护,密钥只存数据库不入代码)
+ai:
+  enabled: true
+  alert-assess: true      # 告警产生后自动异步研判(写回 aiAdvice)
+  report-cron: "0 36 7 * * *"   # 态势日报每日 07:36 自动生成并发站内信
+
+# 低空威胁感知(传统算法实时判断,LLM 不进环路)
+threat:
+  enabled: true
+  horizon-seconds: 60          # 轨迹外推时长
+  predict-cooldown-ms: 300000  # 预测闯入告警冷却
+  conflict-dcpa-meters: 100    # 多机最近会遇距离阈值
+  conflict-tcpa-seconds: 60    # 多机最近会遇时间阈值
+  conflict-altitude-diff: 30   # 高度差大于此视为不同高度层,不判冲突
+  battery-drop-percent: 15     # 电量骤降阈值
+  battery-window-seconds: 300  # 电量骤降判定窗口
+  altitude-jump-meters: 40     # 高度突变阈值
+  min-satellites: 6            # 卫星数低于此判定信号弱
+

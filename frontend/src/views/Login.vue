@@ -279,6 +279,8 @@ async function doLogin() {
     const data = await http.post('/auth/login', form)
     localStorage.setItem('token', data.token)
     localStorage.setItem('nickname', data.nickname || data.username)
+    localStorage.setItem('roleCode', data.roleCode || '')
+    if (data.menus) localStorage.setItem('menus', JSON.stringify(data.menus))
     ElMessage.success('登录成功')
     router.push('/')
   } catch (e) {

@@ -2,106 +2,324 @@
   <div class="page">
     <div class="page-header">
       <span class="page-title">地图管理</span>
-      <span class="page-sub">全平台底图提供商切换 · 密钥集中配置</span>
+      <span class="page-sub">底图厂商配置 · 凭证/自定义瓦片集中维护 · 默认底图设置</span>
     </div>
 
-    <!-- 提供商选择 -->
-    <div class="panel providers-panel">
-      <div class="panel-title">底图提供商</div>
-      <div class="cards">
-        <div v-for="p in providers" :key="p.id"
-             class="provider-card" :class="{ active: p.id === current }"
-             @click="choose(p)">
-          <div class="pc-badge" :style="{ background: p.grad }">{{ p.short }}</div>
-          <div class="pc-main">
-            <div class="pc-name">
-              <span>{{ p.name }}</span>
-              <span v-if="p.id === current" class="pc-using">使用中</span>
-              <span class="pc-key" :class="ready(p.id) ? 'ok' : 'no'">
-                {{ ready(p.id) ? '密钥就绪' : '密钥未配置' }}
-              </span>
-            </div>
-            <p class="pc-desc">{{ p.desc }}</p>
-            <div class="pc-tags">
-              <span v-for="t in p.tags" :key="t">{{ t }}</span>
-            </div>
-          </div>
-          <div class="pc-check" :style="{ background: p.grad }">
-            <el-icon color="#fff"><Check /></el-icon>
-          </div>
-        </div>
+    <div class="panel">
+      <div class="panel-title row-between">
+        <span>底图厂商配置</span>
+        <el-button type="primary" size="small" :icon="Plus" @click="openCreate">新增配置</el-button>
       </div>
+
+      <el-table :data="rows" v-loading="loading" row-key="id">
+        <el-table-column label="底图" min-width="200">
+          <template #default="{ row }">
+            <div class="prov-cell">
+              <span class="prov-badge" :style="{ background: row.grad || gradOf(row.vendor) }">
+                {{ (row.name || row.code).trim().charAt(0) }}
+              </span>
+              <div class="prov-meta">
+                <div class="prov-name">
+                  {{ row.name }}
+                  <span v-if="row.code === current" class="tag tag-use">使用中</span>
+                  <span v-if="row.isDefault" class="tag tag-def">默认</span>
+                </div>
+                <div class="prov-code">{{ row.code }} · {{ vendorInfo(row.vendor).label }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="接入凭证" min-width="130">
+          <template #default="{ row }">
+            <span class="tag" :class="credsReady(row) ? 'tag-ok' : 'tag-no'">
+              {{ credsReady(row) ? '已配置' : '未配置' }}
+            </span>
+            <div v-if="!credsReady(row) && fallbackReady(row)" class="fb-hint">环境变量兜底可用</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="自定义瓦片" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.vendor === 'CUSTOM'">{{ row.tileUrl || '—' }}</span>
+            <span v-else class="dim">内置厂商</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="启用" width="80">
+          <template #default="{ row }">
+            <el-switch v-model="row.enabled" :loading="row._saving" @change="toggleEnabled(row)" />
+          </template>
+        </el-table-column>
+        <el-table-column label="排序" prop="sort" width="70" />
+        <el-table-column label="操作" width="250" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="use(row)" :disabled="!canUse(row)">使用</el-button>
+            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="success" size="small" :disabled="row.isDefault || !row.enabled"
+                       @click="setDefault(row)">设为默认</el-button>
+            <el-button v-if="row.vendor === 'CUSTOM'" link type="danger" size="small"
+                       @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
       <div class="switch-tip">
         <el-icon color="#155eef"><InfoFilled /></el-icon>
-        <span>切换后重新进入地图页面即生效(实时监控 / 电子围栏 / 飞行任务),航线选点仍使用百度坐标体系保证数据一致。</span>
-        <el-button size="small" type="primary" plain @click="reload">立即刷新</el-button>
+        <span>
+          「默认」为全平台未本机选择时的缺省底图;「使用」仅本机立即切换,重新进入地图页面生效。
+          内置厂商(百度/高德/天地图)不可删除,可停用或清空凭证;凭证取值链:本页厂商配置 → 本机 localStorage → .env / yml。
+        </span>
       </div>
     </div>
 
-    <!-- 密钥配置 -->
-    <div class="panel key-panel">
-      <div class="panel-title">密钥配置</div>
-      <div class="key-form">
-        <div class="key-item">
-          <label>高德 Key</label>
-          <el-input v-model="keys.amap" placeholder="高德开放平台申请的 JS API Key" clearable />
-        </div>
-        <div class="key-item">
-          <label>高德安全密钥</label>
-          <el-input v-model="keys.amapSec" placeholder="JS API 2.0 必配的 securityJsCode" clearable show-password />
-        </div>
-        <div class="key-item">
-          <label>天地图 Key</label>
-          <el-input v-model="keys.tdt" placeholder="天地图控制台申请的浏览器端 tk" clearable />
-        </div>
-        <el-button type="primary" class="key-save" @click="saveKeys">保存密钥</el-button>
-      </div>
-      <p class="key-note">
-        百度 AK 由 .env 的 VITE_BMAP_AK 提供;高德 / 天地图密钥保存在本机浏览器(localStorage),
-        保存后无需重启即可切换。未配置密钥的提供商不可启用,防止地图空白。
-      </p>
-    </div>
+    <!-- 新增/编辑配置 -->
+    <el-dialog v-model="dialog.visible" width="620px" :title="dialog.form.id ? '编辑底图配置' : '新增底图配置'" destroy-on-close>
+      <el-form :model="dialog.form" label-width="100px">
+        <el-form-item label="厂商" required>
+          <el-radio-group v-model="dialog.form.vendor" :disabled="!!dialog.form.id">
+            <el-radio v-for="v in VENDORS" :key="v.code" :value="v.code">{{ v.label }}</el-radio>
+          </el-radio-group>
+          <div v-if="!dialog.form.id" class="field-tip">厂商创建后不可变更;自定义厂商需提供 XYZ 瓦片地址与渲染引擎。</div>
+          <div v-else class="field-tip">厂商不可修改,如需变更请新建配置。</div>
+        </el-form-item>
+        <el-form-item label="标识" required>
+          <el-input v-model="dialog.form.code" :disabled="!!dialog.form.id" maxlength="32"
+                    placeholder="如 survey-tile,仅字母/数字/下划线/中划线" />
+        </el-form-item>
+        <el-form-item label="名称" required>
+          <el-input v-model="dialog.form.name" maxlength="64" placeholder="如:内网影像底图" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="dialog.form.description" maxlength="200" placeholder="可选" />
+        </el-form-item>
+
+        <el-form-item v-for="c in activeCreds" :key="c.key" :label="c.label" :required="!vendorInfo(dialog.form.vendor).custom">
+          <el-input v-model="dialog.form.creds[c.key]" :placeholder="c.ph" show-password clearable />
+        </el-form-item>
+        <el-form-item v-if="vendorInfo(dialog.form.vendor).custom" label=" ">
+          <div class="field-tip">凭证保存在服务端,对全平台登录用户生效;清空保存即清除(自定义瓦片密钥可为空)。</div>
+        </el-form-item>
+
+        <template v-if="vendorInfo(dialog.form.vendor).custom">
+          <el-form-item label="渲染引擎" required>
+            <el-radio-group v-model="dialog.form.engine">
+              <el-radio value="tdt">天地图(推荐)</el-radio>
+              <el-radio value="amap">高德</el-radio>
+              <el-radio value="baidu">百度</el-radio>
+            </el-radio-group>
+            <div class="field-tip">
+              大多数 XYZ 瓦片服务(OSM / MapBox / 内网瓦片)为 WGS-84 坐标,选天地图引擎叠加无偏移;
+              高德(GCJ-02)/ 百度(BD-09)引擎会偏移数百米,且百度瓦片切片方案与通用 XYZ 不同,通常不建议。
+            </div>
+          </el-form-item>
+          <el-form-item label="瓦片 URL" required>
+            <el-input v-model="dialog.form.tileUrl" placeholder="https://tile.example.com/{z}/{x}/{y}.png" />
+            <div class="field-tip">须含 {z} {x} {y} 占位符;需要密钥的服务可加 {key} 占位符,由上方瓦片密钥替换。</div>
+          </el-form-item>
+        </template>
+
+        <el-form-item label="标识配色">
+          <div class="grad-row">
+            <el-color-picker v-model="dialog.form.c1" />
+            <el-color-picker v-model="dialog.form.c2" />
+            <div class="grad-preview" :style="{ background: previewGrad }">{{ shortPreview }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="dialog.form.sort" :min="0" :max="999" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="dialog.form.enabled" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="dialog.saving" @click="save">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Check, InfoFilled } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { InfoFilled, Plus } from '@element-plus/icons-vue'
 import {
-  PROVIDERS, getProviderId, setProviderId,
-  getMapKeys, saveMapKeys, providerKeyReady
+  VENDORS, vendorInfo, getProviderId, setProviderId, providerKeyReady,
+  ensureServerProviders, fetchProviderRows, saveProviderRow, deleteProviderRow, setDefaultProviderRow
 } from '../utils/mapProviders'
 
-const providers = PROVIDERS
+const loading = ref(false)
+const rows = ref([])
 const current = ref(getProviderId())
-const keys = ref({ amap: '', amapSec: '', tdt: '', ...getMapKeys() })
 
-function ready(id) {
-  return providerKeyReady(id)
+const dialog = reactive({ visible: false, saving: false, form: { creds: {} } })
+
+const activeCreds = computed(() => vendorInfo(dialog.form.vendor).creds || [])
+const previewGrad = computed(() =>
+  `linear-gradient(135deg,${dialog.form.c1 || '#6366f1'},${dialog.form.c2 || '#22d3ee'})`)
+const shortPreview = computed(() => (dialog.form.name || '').trim().charAt(0) || '图')
+
+onMounted(load)
+
+async function load() {
+  loading.value = true
+  try {
+    await ensureServerProviders(true)    // 预热注册表缓存(使用/就绪判定依赖)
+    rows.value = await fetchProviderRows()
+    current.value = getProviderId()
+  } finally {
+    loading.value = false
+  }
 }
 
-function choose(p) {
-  if (!ready(p.id)) {
-    ElMessage.warning(`请先在下方配置 ${p.name} 密钥`)
+/* ---------- 表格辅助 ---------- */
+
+function gradOf(vendor) {
+  return { BAIDU: 'linear-gradient(135deg,#337cff,#00c8ff)', AMAP: 'linear-gradient(135deg,#00b96b,#7be6b0)',
+    TDT: 'linear-gradient(135deg,#1a7f6e,#8fd26b)', CUSTOM: 'linear-gradient(135deg,#6366f1,#a855f7)' }[vendor]
+}
+
+function rowCreds(row) {
+  try {
+    return JSON.parse(row.credentialsJson || '{}')
+  } catch (e) {
+    return {}
+  }
+}
+
+/** 服务端凭证是否已配置(按厂商必填字段) */
+function credsReady(row) {
+  const info = vendorInfo(row.vendor)
+  const creds = rowCreds(row)
+  if (info.custom) return true                            // 自定义瓦片密钥可空
+  return info.creds.every((c) => (creds[c.key] || '').trim())
+}
+
+/** 自身未配置时,引擎密钥是否有本机/环境变量兜底 */
+function fallbackReady(row) {
+  return providerKeyReady(row.code)
+}
+
+function canUse(row) {
+  return row.enabled && providerKeyReady(row.code)
+}
+
+/* ---------- 行操作 ---------- */
+
+function use(row) {
+  if (!canUse(row)) {
+    ElMessage.warning(`请先配置 ${row.name} 所需凭证`)
     return
   }
-  current.value = p.id
-  setProviderId(p.id)
-  ElMessage.success(`已切换为${p.name},重新进入地图页面生效`)
+  setProviderId(row.code)
+  current.value = row.code
+  ElMessage.success(`已切换为${row.name},重新进入地图页面生效`)
 }
 
-function saveKeys() {
-  saveMapKeys({
-    amap: keys.value.amap?.trim() || '',
-    amapSec: keys.value.amapSec?.trim() || '',
-    tdt: keys.value.tdt?.trim() || ''
-  })
-  ElMessage.success('密钥已保存到本机')
+async function toggleEnabled(row) {
+  row._saving = true
+  try {
+    await saveProviderRow({ id: row.id, body: { enabled: row.enabled } })
+    ElMessage.success(row.enabled ? '已启用' : '已停用')
+    await load()
+  } catch (e) {
+    row.enabled = !row.enabled
+  } finally {
+    row._saving = false
+  }
 }
 
-function reload() {
-  location.reload()
+async function setDefault(row) {
+  await setDefaultProviderRow(row.id)
+  ElMessage.success(`已将「${row.name}」设为平台默认底图`)
+  await load()
+}
+
+async function remove(row) {
+  await ElMessageBox.confirm(`确认删除配置「${row.name}」?`, '删除确认', { type: 'warning' })
+  try {
+    await deleteProviderRow(row.id)
+    ElMessage.success('已删除')
+    await load()
+  } catch (e) {
+    /* 后端守卫(默认/内置不可删)报错由拦截器提示 */
+  }
+}
+
+/* ---------- 新增/编辑 ---------- */
+
+function openCreate() {
+  dialog.form = {
+    id: null, code: '', vendor: 'BAIDU', name: '', description: '',
+    creds: {}, engine: 'tdt', tileUrl: '', c1: '#337cff', c2: '#00c8ff',
+    sort: (rows.value.length + 1) * 10, enabled: true
+  }
+  dialog.visible = true
+}
+
+function openEdit(row) {
+  const creds = rowCreds(row)
+  const hexes = (row.grad || '').match(/#[0-9a-fA-F]{3,8}/g) || []
+  dialog.form = {
+    id: row.id,
+    code: row.code,
+    vendor: row.vendor,
+    name: row.name,
+    description: row.description || '',
+    creds: { ...creds },
+    engine: row.engine || 'tdt',
+    tileUrl: row.tileUrl || '',
+    c1: hexes[0] || '#6366f1',
+    c2: hexes[1] || '#22d3ee',
+    sort: row.sort ?? 0,
+    enabled: row.enabled !== false
+  }
+  dialog.visible = true
+}
+
+async function save() {
+  const f = dialog.form
+  const info = vendorInfo(f.vendor)
+  if (!f.name?.trim()) return ElMessage.warning('请输入名称')
+  if (!f.id) {
+    if (!/^[a-zA-Z0-9_-]{2,32}$/.test(f.code || '')) {
+      return ElMessage.warning('标识仅允许字母/数字/下划线/中划线,2-32 位')
+    }
+  }
+  if (info.custom) {
+    const url = f.tileUrl?.trim() || ''
+    if (!/^https?:\/\//.test(url)) return ElMessage.warning('瓦片 URL 需以 http(s):// 开头')
+    for (const t of ['{z}', '{x}', '{y}']) {
+      if (!url.includes(t)) return ElMessage.warning(`瓦片 URL 缺少占位符 ${t}`)
+    }
+  }
+  dialog.saving = true
+  try {
+    const creds = {}
+    for (const c of info.creds) {
+      const v = (f.creds[c.key] || '').trim()
+      if (v || !info.custom) creds[c.key] = v       // 内置厂商保留字段(可为空=清除);自定义空则不存
+    }
+    await saveProviderRow({
+      id: f.id,
+      body: {
+        code: f.code?.trim(),
+        vendor: f.vendor,
+        name: f.name.trim(),
+        description: f.description?.trim() || '',
+        credentialsJson: JSON.stringify(creds),
+        tileUrl: info.custom ? f.tileUrl.trim() : null,
+        engine: info.custom ? f.engine : null,
+        grad: `linear-gradient(135deg,${f.c1 || '#6366f1'},${f.c2 || '#22d3ee'})`,
+        sort: f.sort ?? 0,
+        enabled: f.enabled !== false
+      }
+    })
+    ElMessage.success('已保存' + (f.code === current.value ? ',重新进入地图页面生效' : ''))
+    dialog.visible = false
+    await load()
+  } finally {
+    dialog.saving = false
+  }
 }
 </script>
 
@@ -115,68 +333,31 @@ function reload() {
   gap: 14px;
 }
 .page-sub { font-size: 13px; color: var(--text-dim); }
+.panel { padding: 18px 20px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
 
-.providers-panel, .key-panel { padding: 18px 20px; }
-
-/* 提供商卡片 */
-.cards { display: flex; flex-direction: column; gap: 12px; }
-
-.provider-card {
-  position: relative;
-  display: flex;
-  gap: 14px;
-  padding: 16px;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all .2s;
-  background: #fff;
-}
-.provider-card:hover { border-color: #b8ccf7; box-shadow: var(--shadow-sm); }
-.provider-card.active {
-  border-color: #155eef;
-  background: linear-gradient(90deg, #f5f9ff, #fff);
-  box-shadow: inset 0 0 0 1px #d6e4ff;
-}
-
-.pc-badge {
-  width: 46px; height: 46px; flex-shrink: 0;
+/* 表格内厂商单元格 */
+.prov-cell { display: flex; align-items: center; gap: 10px; }
+.prov-badge {
+  width: 38px; height: 38px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 19px; font-weight: 700;
-  border-radius: 12px;
+  color: #fff; font-size: 16px; font-weight: 700; border-radius: 10px;
 }
+.prov-name {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 14px; font-weight: 700; color: #101828;
+}
+.prov-code { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
-.pc-main { flex: 1; min-width: 0; }
-.pc-name {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 15px; font-weight: 700; color: #101828;
+.tag {
+  font-size: 11px; padding: 1px 9px; border-radius: 999px; white-space: nowrap;
 }
-.pc-using {
-  font-size: 11px; padding: 1px 9px; border-radius: 999px;
-  background: #eff6ff; color: #155eef;
-  border: 1px solid #d6e4ff;
-}
-.pc-key { font-size: 11px; padding: 1px 9px; border-radius: 999px; }
-.pc-key.ok { color: #12b76a; background: #ecfdf3; border: 1px solid #d1fadf; }
-.pc-key.no { color: #f04438; background: #fef3f2; border: 1px solid #fee4e2; }
-
-.pc-desc { margin: 7px 0 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
-
-.pc-tags { display: flex; gap: 6px; margin-top: 9px; }
-.pc-tags span {
-  font-size: 11px; color: #475467;
-  padding: 2px 9px; border-radius: 6px;
-  background: #f2f4f7; border: 1px solid var(--border);
-}
-
-.pc-check {
-  position: absolute; top: -8px; right: -8px;
-  width: 22px; height: 22px; border-radius: 50%;
-  display: none;
-  align-items: center; justify-content: center;
-  box-shadow: 0 2px 6px -2px rgba(21, 94, 239, .5);
-}
-.provider-card.active .pc-check { display: flex; }
+.tag-use { background: #eff6ff; color: #155eef; border: 1px solid #d6e4ff; }
+.tag-def { background: #ecfdf3; color: #12b76a; border: 1px solid #d1fadf; }
+.tag-ok { color: #12b76a; background: #ecfdf3; border: 1px solid #d1fadf; }
+.tag-no { color: #f04438; background: #fef3f2; border: 1px solid #fee4e2; }
+.fb-hint { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+.dim { color: var(--text-dim); }
 
 .switch-tip {
   display: flex; align-items: center; gap: 8px;
@@ -188,22 +369,16 @@ function reload() {
 }
 .switch-tip span { flex: 1; }
 
-/* 密钥表单 */
-.key-form { display: flex; gap: 12px; align-items: flex-end; }
-.key-item { flex: 1; }
-.key-item label {
-  display: block; margin-bottom: 6px;
-  font-size: 12.5px; font-weight: 600; color: #344054;
-}
-.key-save { flex-shrink: 0; }
-
-.key-note {
-  margin: 14px 0 0;
+/* 弹窗表单 */
+.field-tip {
+  width: 100%;
+  margin-top: 6px;
   font-size: 12px; color: var(--text-dim); line-height: 1.7;
 }
-
-@media (max-width: 1100px) {
-  .key-form { flex-wrap: wrap; }
-  .key-item { min-width: 240px; }
+.grad-row { display: flex; align-items: center; gap: 12px; }
+.grad-preview {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 15px; font-weight: 700;
 }
 </style>

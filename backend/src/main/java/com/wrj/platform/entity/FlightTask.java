@@ -22,8 +22,8 @@ public class FlightTask {
     private String description;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "drone_id")
-    private Drone drone;
+    @JoinColumn(name = "device_id")
+    private Device device;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "pilot_id")
@@ -59,8 +59,8 @@ public class FlightTask {
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
 
-    public Drone getDrone() { return drone; }
-    public void setDrone(Drone drone) { this.drone = drone; }
+    public Device getDevice() { return device; }
+    public void setDevice(Device device) { this.device = device; }
 
     public Pilot getPilot() { return pilot; }
     public void setPilot(Pilot pilot) { this.pilot = pilot; }

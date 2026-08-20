@@ -20,7 +20,7 @@
           <template #default="{ row }"><span class="name">{{ row.name }}</span></template>
         </el-table-column>
         <el-table-column label="无人机" width="140">
-          <template #default="{ row }"><span class="code">{{ row.drone?.code || '-' }}</span></template>
+          <template #default="{ row }"><span class="code">{{ row.device?.code || '-' }}</span></template>
         </el-table-column>
         <el-table-column label="飞手" width="80">
           <template #default="{ row }">{{ row.pilot?.name || '-' }}</template>
@@ -128,6 +128,7 @@ import { ElMessage } from 'element-plus'
 import { VideoPlay } from '@element-plus/icons-vue'
 import http from '../api'
 import { DARK_MAP_STYLE, BMAP_AK } from '../utils/map'
+import { ensureServerKeys, effectiveMapKeys } from '../utils/mapProviders'
 import { createMap, routePointSvg } from '../utils/mapAdapter'
 
 const statusText = { PENDING: '待执行', FLYING: '执行中', COMPLETED: '已完成', ABORTED: '已中止' }
@@ -158,7 +159,7 @@ async function load() {
   loading.value = true
   try {
     ;[tasks.value, drones.value, pilots.value] = await Promise.all([
-      http.get('/tasks'), http.get('/drones'), http.get('/pilots')
+      http.get('/tasks'), http.get('/devices', { params: { category: 'DRONE' } }), http.get('/pilots')
     ])
   } finally { loading.value = false }
 }
@@ -174,15 +175,18 @@ function pickOnMap() {
   doPick()
 }
 
-function doPick() {
+async function doPick() {
   picking.value = true
+  // AK 优先用「地图管理」页保存的服务端配置,未登录拉取失败时回落 .env 构建值
+  await ensureServerKeys()
+  const ak = effectiveMapKeys().baidu || BMAP_AK
   const win = window.open('', '_blank', 'width=900,height=680')
   if (!win) { ElMessage.warning('弹窗被拦截,请允许弹窗后重试'); picking.value = false; return }
 
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>航线选点</title>
     <style>body{margin:0;font-family:sans-serif}#tip{position:fixed;top:10px;left:10px;z-index:99;background:#0a1428;color:#7fd4ff;padding:8px 14px;border-radius:8px;border:1px solid #1c4a7d;font-size:13px}</style>
     </head><body><div id="tip">依次点击地图取点(至少 2 个),完成后自动关闭</div><div id="map" style="width:100vw;height:100vh"></div>
-    <script src="https://api.map.baidu.com/api?v=1.0&type=webgl&ak=${BMAP_AK}"><\/script>
+    <script src="https://api.map.baidu.com/api?v=1.0&type=webgl&ak=${ak}"><\/script>
     <script>
     const map = new BMapGL.Map(document.getElementById('map'))
     map.centerAndZoom(new BMapGL.Point(116.404, 39.925), 12)
@@ -191,9 +195,11 @@ function doPick() {
     const pts = []
     let line = null
     map.addEventListener('click', (e) => {
-      const p = { lng: +e.point.lng.toFixed(6), lat: +e.point.lat.toFixed(6) }
+      // BMapGL 事件里 e.point 为墨卡托米制坐标,经纬度必须取 e.latlng
+      const ll = e.latlng || e.point
+      const p = { lng: +ll.lng.toFixed(6), lat: +ll.lat.toFixed(6) }
       pts.push(p)
-      const m = new BMapGL.Marker(e.point)
+      const m = new BMapGL.Marker(new BMapGL.Point(p.lng, p.lat))
       map.addOverlay(m)
       if (line) map.removeOverlay(line)
       if (pts.length >= 2) line = new BMapGL.Polyline(pts.map(x => new BMapGL.Point(x.lng, x.lat)), {strokeColor:'#155eef',strokeWeight:3})
@@ -237,7 +243,7 @@ async function save() {
       : null
     await http.post('/tasks', {
       ...f,
-      drone: { id: f.droneId },
+      device: { id: f.droneId },
       pilot: f.pilotId ? { id: f.pilotId } : null,
       routeJson: route ? JSON.stringify(route) : null
     })

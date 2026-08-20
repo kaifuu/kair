@@ -14,6 +14,10 @@ backend/data/
 # 日志与临时文件
 *.log
 *.tmp
+dbdump.txt
+
+# 本地参考资料(离线 BMapGL SDK 副本,无代码引用)
+backend/bmapgl.js
 
 # IDE / 工具缓存
 .idea/

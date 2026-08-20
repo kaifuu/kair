@@ -3,6 +3,7 @@ package com.wrj.platform.controller;
 import com.wrj.platform.common.ApiResponse;
 import com.wrj.platform.entity.GeoFence;
 import com.wrj.platform.repository.GeoFenceRepository;
+import com.wrj.platform.service.CoordUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ public class GeoFenceController {
         if (body.getType() == null) body.setType(GeoFence.Type.NO_FLY);
         if (body.getShape() == null) body.setShape(GeoFence.Shape.POLYGON);
         if (body.getEnabled() == null) body.setEnabled(true);
+        if (body.getMaxAltitude() == null) body.setMaxAltitude(0.0);
         return ApiResponse.ok(fenceRepository.save(body));
     }
 
@@ -52,5 +54,13 @@ public class GeoFenceController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         fenceRepository.deleteById(id);
         return ApiResponse.ok();
+    }
+
+    /** 点位所在围栏(入参为 BD-09 业务坐标,服务端转 WGS-84 后走 PostGIS 查询) */
+    @GetMapping("/contains")
+    public ApiResponse<List<GeoFence>> contains(@RequestParam double lng, @RequestParam double lat) {
+        double[] wgs = CoordUtils.bd09ToWgs84(lng, lat);
+        List<Long> ids = fenceRepository.findContainingFenceIds(wgs[0], wgs[1]);
+        return ApiResponse.ok(ids.isEmpty() ? List.of() : fenceRepository.findAllById(ids));
     }
 }

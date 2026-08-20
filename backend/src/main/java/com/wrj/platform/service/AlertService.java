@@ -3,13 +3,15 @@ package com.wrj.platform.service;
 import com.wrj.platform.config.TelemetryWebSocketHandler;
 import com.wrj.platform.dto.AlertDto;
 import com.wrj.platform.entity.Alert;
-import com.wrj.platform.entity.Drone;
+import com.wrj.platform.entity.Device;
 import com.wrj.platform.entity.FlightTask;
 import com.wrj.platform.repository.AlertRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,21 +21,35 @@ public class AlertService {
 
     private final AlertRepository alertRepository;
     private final TelemetryWebSocketHandler wsHandler;
+    private final AiAssistantService aiAssistant;
 
-    public AlertService(AlertRepository alertRepository, TelemetryWebSocketHandler wsHandler) {
+    public AlertService(AlertRepository alertRepository, TelemetryWebSocketHandler wsHandler,
+                        AiAssistantService aiAssistant) {
         this.alertRepository = alertRepository;
         this.wsHandler = wsHandler;
+        this.aiAssistant = aiAssistant;
     }
 
-    /** 创建告警并即时 WS 推送 */
+    /** 创建告警并即时 WS 推送;事务提交后触发 AI 研判(异步,失败不影响告警) */
     @Transactional
-    public Alert raise(Alert.Type type, Alert.Level level, Drone drone, FlightTask task,
+    public Alert raise(Alert.Type type, Alert.Level level, Device device, FlightTask task,
                        String message, Double lng, Double lat, Double altitude) {
-        Alert alert = new Alert(type, level, drone, task, message, lng, lat, altitude);
+        Alert alert = new Alert(type, level, device, task, message, lng, lat, altitude);
         alert = alertRepository.save(alert);
         try {
             wsHandler.broadcast("alert", toDto(alert));
         } catch (Exception ignored) {
+        }
+        Long alertId = alert.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    aiAssistant.assessAsync(alertId);
+                }
+            });
+        } else {
+            aiAssistant.assessAsync(alertId);
         }
         return alert;
     }
@@ -65,13 +81,42 @@ public class AlertService {
         return alertRepository.countByHandledFalse();
     }
 
+    /** 导出用:按当前过滤条件取全量(不分页) */
+    @Transactional(readOnly = true)
+    public List<Alert> listForExport(boolean unhandledOnly) {
+        return unhandledOnly
+                ? alertRepository.findByHandledFalse()
+                : alertRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    /** 批量删除,返回实际删除条数 */
+    @Transactional
+    public long deleteBatch(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        alertRepository.deleteAllById(ids);
+        return ids.size();
+    }
+
+    /** 一键清空:handledOnly=true 仅清已处理,否则全清;返回清除条数 */
+    @Transactional
+    public long clear(boolean handledOnly) {
+        long count = handledOnly ? alertRepository.countByHandledTrue() : alertRepository.count();
+        if (count == 0) return 0;
+        if (handledOnly) {
+            alertRepository.deleteByHandledTrue();
+        } else {
+            alertRepository.deleteAllInBatch();
+        }
+        return count;
+    }
+
     public static AlertDto toDto(Alert a) {
         AlertDto dto = new AlertDto();
         dto.setId(a.getId());
         dto.setType(a.getType() == null ? null : a.getType().name());
         dto.setLevel(a.getLevel() == null ? null : a.getLevel().name());
-        dto.setDroneCode(a.getDrone() == null ? null : a.getDrone().getCode());
-        dto.setDroneId(a.getDrone() == null ? null : a.getDrone().getId());
+        dto.setDroneCode(a.getDevice() == null ? null : a.getDevice().getCode());
+        dto.setDroneId(a.getDevice() == null ? null : a.getDevice().getId());
         dto.setTaskName(a.getTask() == null ? null : a.getTask().getName());
         dto.setMessage(a.getMessage());
         dto.setLng(a.getLng());
@@ -79,6 +124,7 @@ public class AlertService {
         dto.setAltitude(a.getAltitude());
         dto.setHandled(Boolean.TRUE.equals(a.getHandled()));
         dto.setHandler(a.getHandler());
+        dto.setAiAdvice(a.getAiAdvice());
         dto.setCreatedAt(a.getCreatedAt() == null ? null : a.getCreatedAt().toString());
         return dto;
     }

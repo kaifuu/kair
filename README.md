@@ -1,97 +1,221 @@
-# 无人机低空监管平台 (UAV Supervision Platform)
+# UAV Low-Altitude Supervision Platform
 
-前后端分离的无人机低空监管系统:**Vue 3 + Spring Boot 3 + 多引擎地图(百度 / 高德 / 天地图可切换)**,科技蓝监管大屏风格,内置飞行模拟引擎,开箱即可体验完整的「任务审批 → 起飞 → 实时态势 → 告警处置」闭环。
+**English** | [简体中文](README.zh-CN.md)
 
-## 功能总览
+A full-stack **drone / low-altitude airspace supervision platform** for government-style regulators: real-time map monitoring, geofencing, flight-task approval, alerting, IoT device access — plus an **AI duty assistant** (streaming chat with platform tool-calling, alert assessment, daily situation reports) and **predictive threat perception**.
 
-| 模块 | 说明 |
-|------|------|
-| 实时监控大屏 | 多引擎底图,无人机图标实时位置与航向、航迹线、电子围栏渲染、机巢归航点、在飞列表、实时告警滚动、告警位置涟漪、2D/3D 视角切换 |
-| **地图管理** | 全平台底图一键切换 **百度地图 / 高德地图 / 天地图**,坐标系统自动互转(业务数据统一 BD-09 存储),高德/天地图密钥支持页面本机配置 |
-| 无人机管理 | 档案 CRUD、状态机(待命/飞行/充电/维保/离线)、飞手绑定、归航点 |
-| 飞手管理 | 执照档案 CRUD、有效期管理、飞行时长统计 |
-| 飞行任务 | 任务创建、审批流(批准/驳回)、下发起飞、中止、地图选点航线 |
-| 电子围栏 | 禁飞区/限飞区/作业区,圆形/多边形,限高配置,启停控制 |
-| 告警中心 | 禁飞区闯入、超高、低电量、失联等,分级(紧急/警告),处理闭环 |
-| 统计分析 | 近7日趋势、机型分布、告警类型、飞手排行(ECharts) |
-| 登录 | 科技蓝大屏登录页,验证码 + JWT 风格 token |
+Built with **Vue 3 + Spring Boot 3 + PostgreSQL/PostGIS**, a **switchable multi-engine map layer** (Baidu / AMap / Tianditu / custom XYZ tiles), a built-in **flight simulator**, and a **Netty device gateway** (binary TLV frames / DTU serial passthrough / Modbus TCP). Out of the box you can experience the full loop: *task approval → take-off → live situation → alert handling*, and *IoT device access → protocol parsing → history*.
 
-## 技术栈
+---
 
-- **前端** `frontend/` — Vue 3(script setup)· Vite 5 · Element Plus · ECharts · 多引擎地图适配层(vite 代理 `/api` `/ws`)
-- **后端** `backend/` — Spring Boot 3.5 · Java 25 · Spring Data JPA · H2 文件库(`backend/data/`)· WebSocket
-- **地图适配层** — `src/utils/mapAdapter.js` 统一封装百度 GL / 高德 JS API 2.0 / 天地图 4.0,`src/utils/coord.js` 负责 BD-09 / GCJ-02 / WGS-84 坐标互转;业务代码只面向统一 API 与 BD-09 坐标,切换底图零改动
-- **模拟引擎** — 2 秒一 tick:无人机沿航线飞行、电量消耗、卫星数抖动、围栏碰撞检测(射线法/大圆距离)、告警冷却去重(同类 60s)、WS 广播遥测与告警
+## Screenshots
 
-## 项目结构
+| | |
+|---|---|
+| ![Live Monitoring + AI Copilot](docs/screenshots/monitor-ai.png) | ![Live Monitoring](docs/screenshots/monitor.png) |
+| **Live monitoring with the AI duty assistant** — drone marker, track, geofences, right-side panels (alerts / drones / IoT sensors / video), and the drone-styled AI floating ball with a streaming reply | **Live monitoring** — multi-engine basemap, drone icons with heading, tracks, fences, collapsible panels, map toolbox (measure / overview / 3D compass / fullscreen) |
+| ![Statistics](docs/screenshots/stats.png) | ![Alert Center](docs/screenshots/alerts.png) |
+| **Statistics** — 7-day trends, alert-type distribution, model mix, pilot ranking (ECharts, light-blue gov style) | **Alert center** — paging, severity levels, handling workflow, AI assessment column |
+| ![Flight Tasks](docs/screenshots/tasks.png) | ![Geofences](docs/screenshots/fences.png) |
+| **Flight tasks** — creation, approval flow, launch / abort, map route picking | **Geofences** — no-fly / restricted / operation zones, circle / line / polygon drawn on the map |
+| ![Devices](docs/screenshots/devices.png) | ![Map Providers](docs/screenshots/mapadmin.png) |
+| **Device management** — 7 device categories, custom map icons, history curves | **Map provider admin** — server-side key management for all four basemap engines |
+| ![Model Config](docs/screenshots/models.png) | ![Login](docs/screenshots/login.png) |
+| **LLM model config** — OpenAI-compatible endpoints, key stored server-side (masked in API responses) | **Login** — captcha + token auth |
+
+## Feature Overview
+
+| Module | Highlights |
+|--------|-----------|
+| Live monitoring | Multi-engine basemap; live drone position/heading, track lines, geofence rendering (circle/line/polygon); right column with **alerts (paged) / drones (online·offline tabs) / IoT sensors / video** — each panel collapsible, whole column collapsible, map fullscreen (Esc to exit); **track replay** with timeline & speed control for every drone (online = live, offline = last 3 days); all devices rendered as icons (custom icons configurable per device); click an icon for info + 60-min history curves; map toolbox: scale, basemap switcher, pan pad, eagle-eye minimap, 3D compass, distance & area measure — consistent across engines, state remembered |
+| Map admin | Server-side management of basemap providers: keys/styles/ordering per vendor (Baidu / AMap / Tianditu / custom XYZ), default source, enable/disable |
+| Drone management | Profiles CRUD, status machine (standby/flying/charging/maintenance/offline), pilot binding, home point |
+| Pilot management | License profiles, expiry tracking, flight-hour stats |
+| Flight tasks | Creation, approval flow (approve/reject), launch, abort, route picking on map |
+| Geofences | No-fly / restricted / operation zones; **circle / line / polygon drawn interactively on a fullscreen map** (click to add, move preview, double-click to finish; center+radius for circles; undo/clear), existing fences faintly shown for reference — no vendor DrawingManager, identical across all four engines; stored as **WGS-84 (4326) geometry** (Point/LineString/Polygon) with GiST index, BD-09 conversion at the API layer; point-in-fence API |
+| Protocol admin | Device protocol CRUD + **parse testing**: TLV (configurable length/endianness), fixed-offset slices, Modbus register mapping; values in bin/oct/dec/hex with sign/scale/endianness conversion |
+| Device access | 7 device categories (drone/nest/camera/weather/ADS-B/gateway/sensor), **custom map icons** (PNG/SVG upload); virtual devices fed by the built-in simulator, real devices via the **Netty gateway** (3 ports, see below); data persisted + pushed over WebSocket; flight telemetry stored every 4 s |
+| Video | HLS (m3u8) live playback for camera devices: server-side `/api/video/proxy` follows 302 temp tokens and rewrites playlist segment URLs (solves CORS); hls.js decode with native-HLS fallback; 4 public demo streams seeded |
+| Alerts | No-fly breach, altitude exceed, low battery, signal loss, unlicensed flight, overdue task **+ predictive/threat types below**; severity levels; handling workflow; paging |
+| Statistics | 7-day trends, model mix, alert types, pilot ranking (ECharts) |
+| **AI assistant** | See next section |
+| Auth & admin | Captcha login, Bearer token, operation-log aspect; users/roles/menus/orgs/tenants/logs admin pages |
+
+## AI Capabilities
+
+LLM features are powered by any **OpenAI-compatible chat API** (developed & tested with Qwen via DashScope compatible-mode). The API key is configured on the **Model Config** page and stored in the database only — it never enters the repo, and is masked (`******`) in API responses.
+
+| Feature | Description |
+|---------|-------------|
+| **AI duty copilot** | A drone-styled floating ball on the monitoring page opens a draggable/resizable chat window. Replies **stream token-by-token (SSE)** and the model can call **6 platform tools** (`get_overview`, `list_flying`, `list_alerts`, `list_tasks`, `get_device`, `list_fences`) over multi-round function calling — answers are grounded in live platform data, with tool status shown while querying |
+| **Alert AI assessment** | Each new alert is asynchronously assessed after commit (or on demand from the alert page); risk analysis + handling advice is written back to the alert record |
+| **Daily situation report** | Cron-generated (default 07:36) 24 h situation report in markdown, pushed to in-app messages; can also be generated manually |
+| **Predictive threat perception** | Traditional algorithms (LLM never in the real-time loop): 60 s trajectory extrapolation → **PREDICTED_BREACH** with ETA; CPA/DCPA/TCPA math → **CONFLICT_ALERT** between drones; anomaly windows → **BATTERY_ANOMALY / ALTITUDE_JUMP / SIGNAL_WEAK**. All thresholds configurable in `application.yml` |
+
+```yaml
+# backend/src/main/resources/application.yml
+ai:
+  enabled: true
+  alert-assess: true            # async AI assessment on every new alert
+  report-cron: "0 36 7 * * *"   # daily situation report
+threat:
+  horizon-seconds: 60           # trajectory extrapolation horizon
+  conflict-dcpa-meters: 100     # closest-point-of-approach threshold
+  conflict-tcpa-seconds: 60
+  battery-drop-percent: 15      # within battery-window-seconds
+  altitude-jump-meters: 40
+  min-satellites: 6
+```
+
+## Tech Stack & Architecture
+
+- **Frontend** `frontend/` — Vue 3 (script setup) · Vite 5 · Element Plus · ECharts · multi-engine map adapter (dev proxy for `/api` `/ws`)
+- **Backend** `backend/` — Spring Boot 3.5 · Java 17+ · Spring Data JPA · **PostgreSQL 16 + PostGIS 3.4 (Docker)** · hibernate-spatial (JTS) · WebSocket (telemetry/alert push) · **Netty TCP gateway** · SSE streaming
+- **Map adapter** — `mapAdapter.js` unifies Baidu GL / AMap 2.0 / Tianditu 4.0 / custom XYZ tiles; `coord.js` handles BD-09 / GCJ-02 / WGS-84 conversion. Business code targets one API in BD-09 — switching basemaps requires zero changes
+- **Flight simulator** — 2 s tick: drones fly routes, battery drain, satellite jitter, fence collision detection (ray casting / great-circle distance), alert cooldown dedup (60 s per type), WS broadcast; separate IoT simulator (5 s tick) feeds virtual nests/cameras/weather stations/ADS-B/gateways/sensors
 
 ```
-├── backend/                        # Spring Boot 后端
-│   └── src/main/java/com/wrj/platform/
-│       ├── controller/             # REST 接口
-│       ├── service/                # 业务与飞行模拟引擎
-│       ├── entity|repository/      # JPA 实体与仓储
-│       └── config/                 # 种子数据 / WebSocket 配置
-└── frontend/                       # Vue 3 前端
-    └── src/
-        ├── views/                  # 页面(监控/任务/围栏/地图管理...)
-        ├── utils/
-        │   ├── mapAdapter.js       # 统一地图适配层(三引擎)
-        │   ├── mapProviders.js     # 提供商注册表 + SDK 按需加载 + 密钥管理
-        │   ├── coord.js            # 坐标系互转(BD-09/GCJ-02/WGS-84)
-        │   └── map.js              # 图标 SVG 生成 / 百度个性化样式
-        └── api/                    # axios 封装
+┌─ Vue 3 SPA ───────────────────────────────────────────────┐
+│  Monitor / Tasks / Fences / Alerts / Stats / Admin pages  │
+│  Map adapter (Baidu·AMap·Tianditu·XYZ)   AI copilot ball  │
+└──────┬───────────────┬────────────────┬───────────────────┘
+       │ REST /api     │ WS /ws         │ SSE /api/ai/*
+┌──────▼───────────────▼────────────────▼───────────────────┐
+│                Spring Boot 3 (port 8180)                   │
+│  Auth (captcha+token) · Tasks · Fences · Alerts · Stats    │
+│  Device/Protocol admin · Video proxy · Map provider admin  │
+│  AiAssistantService ── LlmService ──► OpenAI-compatible API│
+│  ThreatService (prediction/conflict/anomaly, ms-level)     │
+│  FlightSimulator / IoT simulator (virtual devices)         │
+│  Netty gateway: 9527 TLV · 9528 DTU · 9529 Modbus TCP      │
+└──────┬─────────────────────────────────────────────────────┘
+       │ JPA / hibernate-spatial
+┌──────▼─────────────────────────────────────────────────────┐
+│         PostgreSQL 16 + PostGIS 3.4 (geometry, GiST)       │
+└────────────────────────────────────────────────────────────┘
 ```
 
-## 快速启动
+## Quick Start
 
 ```bash
-# 1. 配置地图密钥(必填百度,高德/天地图按需)
-cp frontend/.env.example frontend/.env
-#   编辑 frontend/.env 填入 VITE_BMAP_AK 等
+# 1. PostgreSQL + PostGIS (must be ready first; tables & seed data auto-created)
+docker run -d --name wrj-postgres \
+  -e POSTGRES_DB=wrj -e POSTGRES_USER=wrj -e POSTGRES_PASSWORD=wrj123 \
+  -p 5432:5432 postgis/postgis:16-3.4
 
-# 2. 后端(先启动,端口 8180,需 JDK 17+ 与 Maven)
+# 2. Backend (port 8180; JDK 17+ & Maven; gateway ports 9527/9528/9529)
 cd backend
 mvn spring-boot:run
 
-# 3. 前端(端口 5174)
+# 3. Frontend (port 5174)
 cd frontend
 npm install
 npm run dev
 ```
 
-访问 **http://localhost:5174**,登录账号 **admin / admin123**
+Open **http://localhost:5174** and log in with **admin / admin123**.
 
-## 地图密钥说明
+> Map keys: recommended to configure on the **Map Admin** page after login (persisted server-side).
+> Fallback env vars for the backend: `MAP_BAIDU_AK / MAP_AMAP_KEY / MAP_AMAP_SEC / MAP_TDT_KEY`.
+> LLM: configure on the **Model Config** page (base URL / model code / API key). No key, no problem — everything except the AI features works without it.
 
-| 提供商 | 申请地址 | 配置方式 |
-|--------|----------|----------|
-| 百度地图 | https://lbsyun.baidu.com | `.env` 的 `VITE_BMAP_AK`(必配) |
-| 高德地图 | https://console.amap.com | `.env` 的 `VITE_AMAP_KEY` + `VITE_AMAP_SEC`,或登录后「地图管理」页本机配置 |
-| 天地图 | https://console.tianditu.gov.cn | `.env` 的 `VITE_TDT_KEY`,或「地图管理」页本机配置 |
+### Map provider keys
 
-> 密钥只存在于本地 `.env`(已 gitignore)或浏览器 localStorage,**不会进入代码仓库**。
-> 切换底图:登录 → **地图管理** → 点选提供商 → 重新进入地图页面即生效。
+| Provider | Apply at | Configure |
+|----------|----------|-----------|
+| Baidu Map | https://lbsyun.baidu.com | Map Admin → edit vendor, paste AK (default source) |
+| AMap | https://console.amap.com | Map Admin → KEY + security secret |
+| Tianditu | https://console.tianditu.gov.cn | Map Admin → TK |
+| Custom tiles | your own tile server | Map Admin → add CUSTOM vendor with URL template + engine |
 
-## 体验路径
+Keys live in the `sys_map_provider` table and browser localStorage fallback — **never in the repo**.
 
-1. 登录 → **实时监控**:地图上可见围栏与机巢,右上角为当前图源标签
-2. **飞行任务** → 找到已批准任务 → 「下发起飞」
-3. 回到 **实时监控**:无人机图标沿航线移动、航迹渐显、右侧在飞列表实时刷新
-4. 任务 1(东城河道巡检)航线穿过核心区禁飞区,约 1 分钟内触发「禁飞区闯入」紧急告警(每 60s 重复提醒),地图告警点涟漪扩散
-5. **告警中心** 处理告警;**统计分析** 查看图表;**地图管理** 切换三家底图对比体验
+## Device Gateway (Netty)
 
-## 主要接口
+| Port | Channel | Use case |
+|------|---------|----------|
+| **9527** | Standard AA55 magic + CRC16 + **TLV** binary frames | Drones, nests and other standard devices |
+| **9528** | DTU serial passthrough (RS232/RS485), `REG:/PING:/DATA:<radix>:` text lines | Serial sensors; payload in bin/oct/dec/hex |
+| **9529** | **Modbus TCP** (MBAP + FC03/04/10) | PLCs etc.; FC16 writes persist immediately |
+
+All three channels parse payloads through the protocol rules configured in **Protocol Admin** (TLV / fixed-offset / register mapping), persist data (last 2 000 rows per device) and push over WS.
+
+### Device simulator (backend/scripts/)
+
+```bash
+# Standard frames → 9527 (drone telemetry TLV)
+node device-simulator.mjs --code UAV-2024-0002 --secret secret-0002 --protocol drone
+
+# DTU serial passthrough → 9528 (RS485 micro weather station, fixed-frame hex)
+node device-simulator.mjs --mode transparent --code AQ-0001 --secret secret-aq01
+
+# Modbus TCP PLC → 9529 (FC16 cyclic write to registers 0-3)
+node device-simulator.mjs --mode modbus --unit 1
+```
+
+Options: `--interval ms` (report period, default 3000), `--host`, `--port`.
+
+## API Overview
 
 ```
-POST /api/auth/login              登录(用户名/密码/验证码)
-GET  /api/auth/captcha            SVG 验证码
-GET  /api/drones|pilots|tasks|fences    列表
-POST /api/tasks/{id}/approve      审批(approved/rejected)
-POST /api/tasks/{id}/launch       下发起飞(启动模拟)
-POST /api/tasks/{id}/abort        中止
-GET  /api/alerts?page&size&unhandled   告警分页
-POST /api/alerts/{id}/handle      处理告警
+POST /api/auth/login                     login (username/password/captcha)
+GET  /api/auth/captcha                   SVG captcha
+GET  /api/drones|pilots|tasks|devices|protocols        lists
+POST /api/tasks/{id}/approve             approval (approved/rejected)
+POST /api/tasks/{id}/launch              launch (starts simulation)
+POST /api/tasks/{id}/abort               abort
+GET  /api/alerts?page&size&unhandled     alert paging
+POST /api/alerts/{id}/handle             handle alert
 GET  /api/stats/{overview|trend|alert-type|drone-model|pilot-rank}
-WS   /ws/telemetry                遥测/告警实时推送 {type, payload, ts}
+GET|POST|PUT|DELETE /api/map-providers   basemap provider admin
+PUT  /api/map-providers/{id}/default     set default source
+GET  /api/fences/contains?lng&lat        point-in-fence check (WGS-84)
+GET  /api/devices/{id}/history?minutes&limit   device history (for replay)
+GET  /api/devices/latest-data            latest frame of every device
+GET  /api/video/proxy?url=<m3u8>         HLS proxy (redirect+rewrite)
+POST /api/protocols/{id}/parse           protocol parse test
+POST /api/ai/copilot                     AI copilot (blocking)
+POST /api/ai/copilot/stream              AI copilot (SSE streaming)
+POST /api/ai/alert/{id}/assess           on-demand alert assessment
+POST /api/ai/report/generate             generate daily situation report
+WS   /ws/telemetry                       live push {type, payload, ts}
+                                         # telemetry | alert | deviceData | deviceStatus
 ```
+
+## Project Structure
+
+```
+├── backend/                        # Spring Boot backend
+│   ├── scripts/                    # zero-dependency tools
+│   │   ├── device-simulator.mjs    # device access simulator (3 modes)
+│   │   ├── probe-register.mjs      # registration probe
+│   │   └── smoke-test.sh           # smoke test (login → APIs → WS)
+│   ├── sql/init/                   # PostGIS extensions bootstrap
+│   └── src/main/java/com/wrj/platform/
+│       ├── controller/             # REST (devices/protocols/map/fences/alerts/ai/...)
+│       ├── service/                # business logic, flight simulator, protocol
+│       │                           # parsing, AiAssistant/Llm/Threat services
+│       ├── gateway/                # Netty gateway (ports 9527/9528/9529)
+│       ├── entity|repository/      # JPA entities (PostGIS geometry in fences)
+│       └── config/                 # seed data, WebSocket, schema init
+└── frontend/                       # Vue 3 frontend
+    └── src/
+        ├── views/                  # pages (monitor/tasks/fences/alerts/stats/...)
+        ├── components/             # monitor panels, AI copilot ball, ...
+        ├── utils/
+        │   ├── mapAdapter.js       # unified map adapter (4 engines)
+        │   ├── mapProviders.js     # provider registry + SDK lazy-load
+        │   ├── coord.js            # BD-09/GCJ-02/WGS-84 conversion
+        │   └── map.js              # device icon SVG generation
+        └── api/                    # axios wrapper
+```
+
+## Demo Walkthrough
+
+1. Log in → **Live Monitoring**: fences, nests and online device icons on the map; click icons for details & history curves; collapse panels / the whole right column; fullscreen the map (Esc to exit)
+2. **Flight Tasks** → find an approved task → **Launch** (demo drones 1/2 are online & flyable)
+3. Back to **Live Monitoring**: the drone icon moves along its route, track fades in; open the **AI floating ball** (bottom-right) and ask “当前态势如何” — the copilot queries live data and streams an answer; replay any drone from the drones panel
+4. Task 1 (river inspection) crosses a core no-fly zone — expect a **critical breach alert** within ~1 min (re-reminded every 60 s) plus a **PREDICTED_BREACH** warning ahead of it; the alert gets an AI assessment within seconds
+5. **Protocol Admin** → “parse test” any protocol: paste a bin/oct/hex payload and see the decoded fields
+6. **Device Management** → 7 IoT categories; run the simulator scripts above to experience real TCP access
+7. Handle alerts in **Alert Center**; browse charts in **Statistics**; switch between the four basemaps in **Map Admin**

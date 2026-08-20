@@ -16,10 +16,13 @@
       </div>
 
       <el-menu :default-active="$route.path" :collapse="collapsed" router>
-        <el-menu-item v-for="m in menus" :key="m.path" :index="m.path">
-          <el-icon><component :is="m.icon" /></el-icon>
-          <template #title>{{ m.label }}</template>
-        </el-menu-item>
+        <template v-for="grp in menuGroups">
+          <li v-if="!collapsed && grp.items.length" :key="grp.key" class="menu-group-title">{{ grp.title }}</li>
+          <el-menu-item v-for="m in grp.items" :key="m.path" :index="m.path">
+            <el-icon><component :is="m.icon" /></el-icon>
+            <template #title>{{ m.label }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
 
       <div class="aside-footer">
@@ -68,10 +71,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Monitor, Menu as IconMenu, Aim, User as IconUser,
-  Location, Bell, TrendCharts, MapLocation as IconMap, Fold, Expand, ArrowDown
-} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
+import http from '../api'
 
 const router = useRouter()
 const collapsed = ref(false)
@@ -79,31 +81,42 @@ const wsOk = ref(false)
 const nickname = ref(localStorage.getItem('nickname') || 'admin')
 const initial = computed(() => (nickname.value || 'A').charAt(0))
 
-const menus = [
-  { path: '/monitor', label: '实时监控', icon: Monitor },
-  { path: '/drones', label: '无人机管理', icon: IconMenu },
-  { path: '/pilots', label: '飞手管理', icon: IconUser },
-  { path: '/tasks', label: '飞行任务', icon: Aim },
-  { path: '/fences', label: '电子围栏', icon: Location },
-  { path: '/alerts', label: '告警中心', icon: Bell },
-  { path: '/stats', label: '统计分析', icon: TrendCharts },
-  { path: '/mapadmin', label: '地图管理', icon: IconMap }
-]
+// 动态菜单:后端 /menus/mine 按角色下发(图标已全局注册,字符串名渲染)
+const menus = ref([])
+const menuGroups = computed(() => [
+  { key: 'BIZ', title: '业务菜单', items: menus.value.filter(m => m.group === 'BIZ') },
+  { key: 'SYS', title: '系统管理', items: menus.value.filter(m => m.group === 'SYS') }
+])
 
 const clock = ref('')
 let timer = null
-onMounted(() => {
+onMounted(async () => {
   clock.value = new Date().toLocaleString('zh-CN', { hour12: false })
   timer = setInterval(() => {
     clock.value = new Date().toLocaleString('zh-CN', { hour12: false })
   }, 1000)
+  try {
+    // 刷新页面后重新拉取菜单(登录响应里已存过一份,失败则回退)
+    menus.value = (await http.get('/menus/mine')).map(m => ({
+      path: m.path, label: m.name, icon: m.icon, group: m.group
+    }))
+  } catch (e) {
+    const cached = JSON.parse(localStorage.getItem('menus') || '[]')
+    menus.value = cached.map(m => ({ path: m.path, label: m.name, icon: m.icon, group: m.group }))
+  }
 })
 onUnmounted(() => clearInterval(timer))
 
-function onCommand(cmd) {
+async function onCommand(cmd) {
   if (cmd === 'logout') {
+    try {
+      await http.post('/auth/logout')
+    } catch (e) { /* token 失效也继续退出 */ }
     localStorage.removeItem('token')
     localStorage.removeItem('nickname')
+    localStorage.removeItem('roleCode')
+    localStorage.removeItem('menus')
+    ElMessage.success('已退出登录')
     router.push('/login')
   }
 }
@@ -137,7 +150,14 @@ function onCommand(cmd) {
   font-size: 15px; font-weight: 700; letter-spacing: 1px; color: #101828;
 }
 
-.el-menu { border-right: none; flex: 1; padding: 10px 10px; }
+.el-menu { border-right: none; flex: 1; padding: 10px 10px; overflow-y: auto; }
+.menu-group-title {
+  list-style: none;
+  padding: 14px 12px 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  color: #98a2b3;
+}
+.menu-group-title:not(:first-child) { border-top: 1px dashed var(--border); margin-top: 8px; }
 :deep(.el-menu-item) {
   border-radius: 9px; margin: 3px 0; height: 42px; line-height: 42px;
   color: #475467; font-weight: 500;

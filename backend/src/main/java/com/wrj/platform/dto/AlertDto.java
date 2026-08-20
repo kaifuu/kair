@@ -15,6 +15,7 @@ public class AlertDto {
     private Double altitude;
     private boolean handled;
     private String handler;
+    private String aiAdvice;
     private String createdAt;
 
     public Long getId() { return id; }
@@ -52,6 +53,9 @@ public class AlertDto {
 
     public String getHandler() { return handler; }
     public void setHandler(String handler) { this.handler = handler; }
+
+    public String getAiAdvice() { return aiAdvice; }
+    public void setAiAdvice(String aiAdvice) { this.aiAdvice = aiAdvice; }
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }

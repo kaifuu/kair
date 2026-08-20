@@ -1,22 +1,46 @@
 package com.wrj.platform.controller;
 
 import com.wrj.platform.common.ApiResponse;
+import com.wrj.platform.entity.SysLog;
+import com.wrj.platform.entity.SysUser;
+import com.wrj.platform.repository.SysLogRepository;
+import com.wrj.platform.repository.SysUserRepository;
+import com.wrj.platform.service.MenuService;
+import com.wrj.platform.service.TokenManager;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** 登录(演示:admin/admin123)+ 图形验证码 */
+/** 登录(SysUser + BCrypt + token)+ 图形验证码 */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
+    private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
+
     /** 验证码缓存:cid -> code */
     private final Map<String, String> captchaStore = new ConcurrentHashMap<>();
     private static final long CAPTCHA_TTL_MS = 5 * 60 * 1000L;
-    private static final long CAPTCHA_TS = 10 * 60 * 1000L;
     private final Map<String, Long> captchaTime = new ConcurrentHashMap<>();
+
+    private final SysUserRepository userRepository;
+    private final SysLogRepository logRepository;
+    private final TokenManager tokenManager;
+    private final MenuService menuService;
+
+    public AuthController(SysUserRepository userRepository, SysLogRepository logRepository,
+                          TokenManager tokenManager, MenuService menuService) {
+        this.userRepository = userRepository;
+        this.logRepository = logRepository;
+        this.tokenManager = tokenManager;
+        this.menuService = menuService;
+    }
 
     /** 生成验证码(返回 SVG) */
     @GetMapping("/captcha")
@@ -36,11 +60,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<Map<String, Object>> login(@RequestBody Map<String, String> body) {
+    public ApiResponse<Map<String, Object>> login(@RequestBody Map<String, String> body,
+                                                  HttpServletRequest request) {
         String username = body.getOrDefault("username", "");
         String password = body.getOrDefault("password", "");
         String cid = body.getOrDefault("cid", "");
         String captcha = body.getOrDefault("captcha", "");
+        String ip = clientIp(request);
 
         // 校验验证码
         String expected = cid.isEmpty() ? null : captchaStore.get(cid);
@@ -52,14 +78,68 @@ public class AuthController {
             return ApiResponse.error(400, "验证码错误");
         }
 
-        if ("admin".equals(username) && "admin123".equals(password)) {
-            return ApiResponse.ok(Map.of(
-                    "token", "demo-token-" + System.currentTimeMillis(),
-                    "username", username,
-                    "nickname", "系统管理员"
-            ));
+        SysUser user = userRepository.findByUsername(username).orElse(null);
+        if (user == null || !ENCODER.matches(password, user.getPassword())) {
+            logRepository.save(new SysLog(SysLog.Type.LOGIN, username, "登录失败",
+                    "用户名或密码错误", ip, false));
+            return ApiResponse.error(401, "用户名或密码错误");
         }
-        return ApiResponse.error(401, "用户名或密码错误");
+        if (user.getStatus() != SysUser.Status.ENABLED) {
+            logRepository.save(new SysLog(SysLog.Type.LOGIN, username, "登录失败",
+                    "账号已停用", ip, false));
+            return ApiResponse.error(403, "账号已停用,请联系管理员");
+        }
+
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+        String token = tokenManager.create(user);
+        logRepository.save(new SysLog(SysLog.Type.LOGIN, username, "登录成功", null, ip, true));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        data.put("username", user.getUsername());
+        data.put("nickname", user.getNickname() == null ? user.getUsername() : user.getNickname());
+        data.put("roleCode", user.getRole() == null ? "" : user.getRole().getCode());
+        data.put("menus", menuService.mine(user));
+        return ApiResponse.ok(data);
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String auth,
+                                    HttpServletRequest request) {
+        if (auth != null && auth.startsWith("Bearer ")) {
+            tokenManager.invalidate(auth.substring(7).trim());
+        }
+        String username = String.valueOf(request.getAttribute("currentUser"));
+        logRepository.save(new SysLog(SysLog.Type.LOGIN, "null".equals(username) ? null : username,
+                "退出登录", null, clientIp(request), true));
+        return ApiResponse.ok();
+    }
+
+    @GetMapping("/profile")
+    public ApiResponse<Map<String, Object>> profile(HttpServletRequest request) {
+        String username = (String) request.getAttribute("currentUser");
+        SysUser user = userRepository.findByUsername(username == null ? "" : username).orElse(null);
+        if (user == null) {
+            return ApiResponse.error(401, "用户不存在");
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", user.getId());
+        data.put("username", user.getUsername());
+        data.put("nickname", user.getNickname());
+        data.put("phone", user.getPhone());
+        data.put("roleCode", user.getRole() == null ? "" : user.getRole().getCode());
+        data.put("roleName", user.getRole() == null ? "" : user.getRole().getName());
+        data.put("menus", menuService.mine(user));
+        return ApiResponse.ok(data);
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        String fwd = request.getHeader("X-Forwarded-For");
+        if (fwd != null && !fwd.isBlank()) {
+            return fwd.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private static String randomCode(int len) {

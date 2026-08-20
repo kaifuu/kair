@@ -9,5 +9,5 @@ public interface FlightTaskRepository extends JpaRepository<FlightTask, Long> {
 
     List<FlightTask> findByStatus(FlightTask.Status status);
 
-    List<FlightTask> findByDroneId(Long droneId);
+    List<FlightTask> findByDeviceId(Long deviceId);
 }

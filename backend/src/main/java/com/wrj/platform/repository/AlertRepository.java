@@ -13,9 +13,18 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     Page<Alert> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+    List<Alert> findAllByOrderByCreatedAtDesc();
+
+    List<Alert> findByHandledFalse();
+
     List<Alert> findTop50ByOrderByCreatedAtDesc();
 
     long countByHandledFalse();
+
+    long countByHandledTrue();
+
+    /** 派生删除,需在事务内调用 */
+    long deleteByHandledTrue();
 
     long countByLevelAndHandledFalse(Alert.Level level);
 }
