@@ -24,3 +24,6 @@ backend/bmapgl.js
 .vscode/
 .codegraph/
 .claude/
+
+# E2E 截图工作目录(入库的已择优复制到 docs/screenshots)
+.shots/

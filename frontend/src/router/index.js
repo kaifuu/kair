@@ -14,6 +14,7 @@ const routes = [
       { path: 'pilots', name: 'pilots', component: () => import('../views/PilotList.vue'), meta: { title: '飞手管理' } },
       { path: 'tasks', name: 'tasks', component: () => import('../views/TaskList.vue'), meta: { title: '飞行任务' } },
       { path: 'fences', name: 'fences', component: () => import('../views/FenceList.vue'), meta: { title: '电子围栏' } },
+      { path: 'drill', name: 'drill', component: () => import('../views/Drill.vue'), meta: { title: '攻防演练' } },
       { path: 'alerts', name: 'alerts', component: () => import('../views/AlertList.vue'), meta: { title: '告警中心' } },
       { path: 'stats', name: 'stats', component: () => import('../views/Stats.vue'), meta: { title: '统计分析' } },
       { path: 'mapadmin', name: 'mapadmin', component: () => import('../views/MapAdmin.vue'), meta: { title: '地图管理' } },

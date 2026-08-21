@@ -12,8 +12,16 @@ import java.time.LocalDateTime;
 @Table(name = "device")
 public class Device {
 
-    /** 设备分类 */
-    public enum Category { DRONE, DOCK, CAMERA, WEATHER, ADSB, GATEWAY, SENSOR }
+    /** 设备分类(后 6 类为无人机反制设备,供攻防演练布防) */
+    public enum Category {
+        DRONE, DOCK, CAMERA, WEATHER, ADSB, GATEWAY, SENSOR,
+        RADAR,          // 警戒雷达(探测)
+        RADIO_DETECT,   // 无线电探测(探测)
+        EO_TRACK,       // 光电跟踪(探测/锁定,配光电视窗)
+        RADIO_JAM,      // 无线电压制(反制:驱离)
+        LASER,          // 激光处置(反制:击落,需光电锁定)
+        NET_CAPTURE     // 网捕无人机(反制:捕获)
+    }
 
     /** ONLINE=网关在线(物联网设备),IDLE/FLYING/MAINTENANCE 主要面向无人机语义 */
     public enum Status { ONLINE, OFFLINE, IDLE, FLYING, MAINTENANCE }
@@ -57,6 +65,9 @@ public class Device {
     /** 视频流地址(HLS m3u8,摄像头类设备;前端经 /api/video/proxy 代理播放) */
     @Column(length = 512)
     private String videoUrl;
+
+    /** 扫描/作用范围 m(反制设备:探测类=探测半径,反制类=有效作用半径) */
+    private Double scanRange;
 
     /** 自定义地图图标(http/data URL,空=按分类默认 SVG;监控地图按此渲染) */
     @Column(length = 300000)
@@ -131,6 +142,9 @@ public class Device {
 
     public String getVideoUrl() { return videoUrl; }
     public void setVideoUrl(String videoUrl) { this.videoUrl = videoUrl; }
+
+    public Double getScanRange() { return scanRange; }
+    public void setScanRange(Double scanRange) { this.scanRange = scanRange; }
 
     public String getIcon() { return icon; }
     public void setIcon(String icon) { this.icon = icon; }

@@ -77,6 +77,9 @@
         <el-table-column v-if="categoryFilter === 'DRONE'" label="用途" width="76">
           <template #default="{ row }">{{ row.usage || '-' }}</template>
         </el-table-column>
+        <el-table-column v-if="isCounter(categoryFilter)" label="扫描范围" width="100">
+          <template #default="{ row }">{{ row.scanRange ? Math.round(row.scanRange) + ' m' : '-' }}</template>
+        </el-table-column>
         <el-table-column v-if="categoryFilter === 'DRONE'" label="飞手" width="76">
           <template #default="{ row }">{{ row.pilot?.name || '-' }}</template>
         </el-table-column>
@@ -230,6 +233,37 @@
             </el-col>
           </el-row>
         </template>
+
+        <template v-if="isCounter(dialog.form.category)">
+          <el-divider content-position="left">反制设备参数</el-divider>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="扫描范围(m)">
+                <el-input-number v-model="dialog.form.scanRange" :min="100" :max="20000" :step="100"
+                                 style="width: 100%" />
+                <div class="form-tip">{{ isCounter(dialog.form.category) ? COUNTER_META[dialog.form.category].label +
+                  ' 类型默认 ' + COUNTER_META[dialog.form.category].defaultRange + ' m(探测半径/反制作用半径)' : '' }}</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="装备用途">
+                <el-input v-model="dialog.form.usage" placeholder="如 360° 空域搜索" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="部署经度">
+                <el-input-number v-model="dialog.form.homeLng" :precision="6" :step="0.001" :min="70" :max="140" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="部署纬度">
+                <el-input-number v-model="dialog.form.homeLat" :precision="6" :step="0.001" :min="15" :max="55" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="dialog.visible = false">取消</el-button>
@@ -244,10 +278,21 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import http from '../api'
-import { deviceSvg, resolveDeviceIcon, customDeviceIcon, ICON_PRESETS } from '../utils/map'
+import { deviceSvg, resolveDeviceIcon, customDeviceIcon, ICON_PRESETS, COUNTER_META } from '../utils/map'
 
-const CATEGORY = { DRONE: '无人机', DOCK: '机库', CAMERA: '摄像头', WEATHER: '气象站', ADSB: 'ADS-B', GATEWAY: '网关', SENSOR: '传感器' }
-const categoryTag = { DRONE: 'primary', DOCK: 'success', CAMERA: 'warning', WEATHER: 'info', ADSB: 'danger', GATEWAY: '', SENSOR: 'info' }
+const CATEGORY = {
+  DRONE: '无人机', DOCK: '机库', CAMERA: '摄像头', WEATHER: '气象站', ADSB: 'ADS-B', GATEWAY: '网关', SENSOR: '传感器',
+  // 无人机反制设备
+  RADAR: '警戒雷达', RADIO_DETECT: '无线电探测', EO_TRACK: '光电跟踪',
+  RADIO_JAM: '无线电压制', LASER: '激光处置', NET_CAPTURE: '网捕无人机'
+}
+const categoryTag = {
+  DRONE: 'primary', DOCK: 'success', CAMERA: 'warning', WEATHER: 'info', ADSB: 'danger', GATEWAY: '', SENSOR: 'info',
+  RADAR: 'warning', RADIO_DETECT: 'primary', EO_TRACK: 'success',
+  RADIO_JAM: 'danger', LASER: 'danger', NET_CAPTURE: 'warning'
+}
+/** 反制设备分类判断与默认扫描范围 */
+const isCounter = (cat) => !!COUNTER_META[cat]
 const STATUS = { ONLINE: '在线', OFFLINE: '离线', IDLE: '待命', FLYING: '飞行中', MAINTENANCE: '维保' }
 const USAGES = ['巡检', '航拍', '测绘', '物流', '农业', '应急', '警用']
 
@@ -352,7 +397,8 @@ function openDialog(row) {
         usage: row.usage || null, pilotId: row.pilot?.id || null,
         homeLng: row.homeLng ?? 116.4, homeLat: row.homeLat ?? 39.9,
         maxAltitude: row.maxAltitude ?? 500, maxEndurance: row.maxEndurance ?? 55,
-        videoUrl: row.videoUrl || '', icon: row.icon || ''
+        videoUrl: row.videoUrl || '', icon: row.icon || '',
+        scanRange: row.scanRange ?? (COUNTER_META[row.category]?.defaultRange ?? null)
       }
     : {
         id: null, code: '', name: '', category: 'DRONE', status: 'OFFLINE',
@@ -360,10 +406,17 @@ function openDialog(row) {
         protocolId: null, secret: '',
         usage: null, pilotId: null,
         homeLng: 116.4, homeLat: 39.9, maxAltitude: 500, maxEndurance: 55,
-        videoUrl: '', icon: ''
+        videoUrl: '', icon: '', scanRange: null
       }
   dialog.visible = true
 }
+
+/** 切换到反制分类且未填范围时,自动带出类型默认扫描范围 */
+watch(() => dialog.form.category, (cat) => {
+  if (isCounter(cat) && !dialog.form.scanRange) {
+    dialog.form.scanRange = COUNTER_META[cat].defaultRange
+  }
+})
 
 async function save() {
   const f = dialog.form
@@ -379,6 +432,7 @@ async function save() {
       maxAltitude: f.maxAltitude, maxEndurance: f.maxEndurance,
       pilot: f.pilotId ? { id: f.pilotId } : null,
       videoUrl: f.category === 'CAMERA' ? (f.videoUrl || '') : undefined,
+      scanRange: isCounter(f.category) ? f.scanRange : undefined,
       icon: f.icon || ''
     }
     if (f.id) await http.put(`/devices/${f.id}`, body)
@@ -436,6 +490,7 @@ async function remove(id) {
 .icon-preview { width: 40px; height: 40px; }
 .icon-preview.custom { border-radius: 8px; border: 1px solid var(--border); background: #fff; object-fit: contain; }
 .icon-tip { font-size: 11px; color: var(--text-dim); }
+.form-tip { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: 2px; }
 
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .status i { width: 7px; height: 7px; border-radius: 50%; }

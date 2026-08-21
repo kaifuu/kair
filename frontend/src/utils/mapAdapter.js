@@ -431,7 +431,10 @@ function baiduFacade(BMapGL, el, opts) {
       map.addOverlay(marker)
       return {
         update(next) {
-          if (!m.svg && next.heading != null) marker.setIcon(mkIcon(droneSvg(next.heading)))
+          // m.rotate:自定义颜色但需随航向旋转(攻防演练敌机);静态 svg 图标不旋转
+          if (next.heading != null && (!m.svg || m.rotate)) {
+            marker.setIcon(mkIcon(droneSvg(next.heading, m.color)))
+          }
           if (next.lng != null) marker.setPosition(P(next))
         },
         destroy() { map.removeOverlay(marker) }
@@ -496,6 +499,9 @@ function baiduFacade(BMapGL, el, opts) {
     onClick(cb) {
       map.addEventListener('click', (e) => cb({ lng: evLL(e).lng, lat: evLL(e).lat }))
     },
+
+    /** 容器像素 → BD-09 业务坐标(拖放布防等 DOM 交互换算;绕过引擎覆盖物命中层) */
+    toData: pxToData,
 
     /** 容器尺寸变化后强制重算画布(全屏/侧栏收起后调用) */
     resize() {
@@ -632,7 +638,9 @@ function amapFacade(AMap, el, opts) {
       map.add(marker)
       return {
         update(next) {
-          if (!m.svg && next.heading != null) marker.setIcon(mkIcon(droneSvg(next.heading)))
+          if (next.heading != null && (!m.svg || m.rotate)) {
+            marker.setIcon(mkIcon(droneSvg(next.heading, m.color)))
+          }
           if (next.lng != null) marker.setPosition(LL(next))
         },
         destroy() { map.remove(marker) }
@@ -699,6 +707,12 @@ function amapFacade(AMap, el, opts) {
 
     onClick(cb) {
       map.on('click', (e) => cb(toData.amap(e.lnglat.lng, e.lnglat.lat)))
+    },
+
+    /** 容器像素 → BD-09 业务坐标(拖放布防等 DOM 交互换算) */
+    toData(x, y) {
+      const g = map.containerToLngLat(new AMap.Pixel(x, y))
+      return g ? toData.amap(g.lng, g.lat) : null
     },
 
     /** 容器尺寸变化后强制重算画布(高德 2.0 自适应,再补发 resize 兜底) */
@@ -825,7 +839,9 @@ function tdtFacade(T, el, opts) {
       map.addOverLay(marker)
       return {
         update(next) {
-          if (!m.svg && next.heading != null) marker.setIcon(mkIcon(droneSvg(next.heading)))
+          if (next.heading != null && (!m.svg || m.rotate)) {
+            marker.setIcon(mkIcon(droneSvg(next.heading, m.color)))
+          }
           if (next.lng != null) marker.setLngLat(LL(next))
         },
         destroy() { map.removeOverLay(marker) }
@@ -897,6 +913,12 @@ function tdtFacade(T, el, opts) {
 
     onClick(cb) {
       map.addEventListener('click', (e) => cb(toData.tdt(e.lnglat.lng, e.lnglat.lat)))
+    },
+
+    /** 容器像素 → BD-09 业务坐标(拖放布防等 DOM 交互换算) */
+    toData(x, y) {
+      const g = map.containerToLngLat(new T.Point(x, y))
+      return g ? toData.tdt(g.getLng(), g.getLat()) : null
     },
 
     /** 容器尺寸变化后强制重算画布(天地图 checkResize + resize 兜底) */

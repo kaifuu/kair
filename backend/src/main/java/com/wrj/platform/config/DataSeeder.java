@@ -85,6 +85,7 @@ public class DataSeeder implements CommandLineRunner {
         seedLlmModels();       // 幂等:存量库也补大模型预设
         if (userRepository.count() > 0) {
             ensureMenus();    // 幂等:存量库也修菜单(路径纠偏/补新菜单)
+            seedCounterDevices();  // 幂等:存量库也补反制设备种子
             log.info("Data already seeded, skip");
             return;
         }
@@ -116,9 +117,10 @@ public class DataSeeder implements CommandLineRunner {
                 new SysMenu("飞手管理", "/pilots", "User", SysMenu.Group.BIZ, 3),
                 new SysMenu("飞行任务", "/tasks", "Aim", SysMenu.Group.BIZ, 4),
                 new SysMenu("电子围栏", "/fences", "Location", SysMenu.Group.BIZ, 5),
-                new SysMenu("告警中心", "/alerts", "Bell", SysMenu.Group.BIZ, 6),
-                new SysMenu("统计分析", "/stats", "TrendCharts", SysMenu.Group.BIZ, 7),
-                new SysMenu("地图管理", "/mapadmin", "MapLocation", SysMenu.Group.BIZ, 8),
+                new SysMenu("攻防演练", "/drill", "Position", SysMenu.Group.BIZ, 6),
+                new SysMenu("告警中心", "/alerts", "Bell", SysMenu.Group.BIZ, 7),
+                new SysMenu("统计分析", "/stats", "TrendCharts", SysMenu.Group.BIZ, 8),
+                new SysMenu("地图管理", "/mapadmin", "MapLocation", SysMenu.Group.BIZ, 9),
                 new SysMenu("协议管理", "/protocols", "Connection", SysMenu.Group.SYS, 1),
                 new SysMenu("报文管理", "/messages", "ChatLineRound", SysMenu.Group.SYS, 2),
                 new SysMenu("人员管理", "/sys/users", "UserFilled", SysMenu.Group.SYS, 3),
@@ -291,6 +293,9 @@ public class DataSeeder implements CommandLineRunner {
         aq.setProtocol(rs485Proto); aq.setSecret("secret-aq01"); aq.setOrgId(orgDev.getId());
         deviceRepository.save(aq);
 
+        // ---------- 无人机反制设备(攻防演练布防用,围绕核心防护区) ----------
+        seedCounterDevices();
+
         // ---------- 电子围栏 ----------
         GeoFence f1 = new GeoFence();
         f1.setName("首都功能核心区禁飞区");
@@ -439,6 +444,58 @@ public class DataSeeder implements CommandLineRunner {
                 taskRepository.count(), alertRepository.count(), mapProviderRepository.count());
     }
 
+    /** 幂等补种反制设备种子(全新库与存量库共用):围绕核心防护区(116.397,39.910)布防 */
+    private void seedCounterDevices() {
+        if (deviceRepository.findByCode("RD-0001").isEmpty()) {
+            Device r = counter("RD-0001", "核心区警戒雷达", Device.Category.RADAR, "LR-66 阵列雷达", "国睿科技",
+                    116.372, 39.928, 5000.0, "360° 空域搜索,探测半径 5km");
+            deviceRepository.save(r);
+        }
+        if (deviceRepository.findByCode("RF-0001").isEmpty()) {
+            Device rf = counter("RF-0001", "东部无线电探测站", Device.Category.RADIO_DETECT, "RFD-9000", "成都汇蓉",
+                    116.421, 39.925, 3500.0, "2.4G/5.8G 频段侦测测向");
+            deviceRepository.save(rf);
+        }
+        if (deviceRepository.findByCode("EO-0001").isEmpty()) {
+            Device eo = counter("EO-0001", "1号光电跟踪仪", Device.Category.EO_TRACK, "EO-360 双光谱", "高德红外",
+                    116.405, 39.895, 2500.0, "红外/可见光双光谱,配光电视窗");
+            deviceRepository.save(eo);
+        }
+        if (deviceRepository.findByCode("EO-0002").isEmpty()) {
+            Device eo2 = counter("EO-0002", "2号光电跟踪仪", Device.Category.EO_TRACK, "EO-360 双光谱", "高德红外",
+                    116.383, 39.897, 2500.0, "红外/可见光双光谱,配光电视窗");
+            deviceRepository.save(eo2);
+        }
+        if (deviceRepository.findByCode("JAM-0001").isEmpty()) {
+            Device jam = counter("JAM-0001", "核心区电磁压制站", Device.Category.RADIO_JAM, "JAM-Pro 8波段", "华御科技",
+                    116.390, 39.902, 1800.0, "导航+图传频段电磁压制");
+            deviceRepository.save(jam);
+        }
+        if (deviceRepository.findByCode("LS-0001").isEmpty()) {
+            Device ls = counter("LS-0001", "低空激光处置站", Device.Category.LASER, "LW-30 光纤激光", "中船重工",
+                    116.400, 39.912, 1000.0, "光纤激光硬杀伤,需光电引导");
+            deviceRepository.save(ls);
+        }
+        if (deviceRepository.findByCode("NC-0001").isEmpty()) {
+            Device nc = counter("NC-0001", "车载网捕无人机", Device.Category.NET_CAPTURE, "NC-Hawk 捕网机", "北航无人机所",
+                    116.393, 39.918, 1200.0, "空中撒网软杀伤捕获");
+            deviceRepository.save(nc);
+        }
+    }
+
+    /** 反制设备档案:有部署坐标与扫描范围,真机接入语义(不由 IoTSimulator 供数) */
+    private Device counter(String code, String name, Device.Category category, String model, String manufacturer,
+                           double homeLng, double homeLat, double scanRange, String usage) {
+        Device d = new Device(code, name, category, model, manufacturer);
+        d.setUsage(usage);
+        d.setHomeLng(homeLng);
+        d.setHomeLat(homeLat);
+        d.setScanRange(scanRange);
+        d.setVirtual(false);
+        d.setStatus(Device.Status.ONLINE);
+        return d;
+    }
+
     /** 幂等菜单维护:纠正存量库 /map → /mapadmin(路由实际路径),补插报文管理菜单 */
     private void ensureMenus() {
         menuRepository.findFirstByPath("/map").ifPresent(m -> {
@@ -457,6 +514,10 @@ public class DataSeeder implements CommandLineRunner {
         if (menuRepository.findFirstByPath("/models").isEmpty()) {
             menuRepository.save(new SysMenu("模型配置", "/models", "Cpu", SysMenu.Group.SYS, 10));
             log.info("Added menu /models (模型配置)");
+        }
+        if (menuRepository.findFirstByPath("/drill").isEmpty()) {
+            menuRepository.save(new SysMenu("攻防演练", "/drill", "Position", SysMenu.Group.BIZ, 6));
+            log.info("Added menu /drill (攻防演练)");
         }
     }
 

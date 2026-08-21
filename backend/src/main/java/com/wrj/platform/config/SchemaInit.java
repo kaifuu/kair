@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,8 +14,10 @@ import org.springframework.stereotype.Component;
  * - docker-entrypoint-initdb.d 已启用 postgis 扩展;此处幂等兜底(本地自建库场景)
  * - Hibernate 建表后补建 GiST 空间索引( ddl-auto 不支持 GiST,必须手动补)
  * ApplicationRunner 在上下文就绪(JPA 已完成 schema 导出)后执行,时序安全。
+ * HIGHEST_PRECEDENCE:CHECK 约束重建必须先于 DataSeeder 种子插入(其插入新枚举值)。
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class SchemaInit implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SchemaInit.class);
@@ -53,6 +57,15 @@ public class SchemaInit implements ApplicationRunner {
                 " 'BATTERY_ANOMALY','ALTITUDE_JUMP','SIGNAL_WEAK'));" +
                 " END $$",
                 "alert.type 约束已放行威胁感知新类型");
+        // 反制设备新增 6 类分类:若存量 schema 存在 category 检查约束则重建放行
+        // (ddl-auto 不会更新 CHECK;无约束时建一条也无害,防手工建库遗漏)
+        tryExec("DO $$ BEGIN" +
+                " ALTER TABLE device DROP CONSTRAINT IF EXISTS device_category_check;" +
+                " ALTER TABLE device ADD CONSTRAINT device_category_check" +
+                " CHECK (category IN ('DRONE','DOCK','CAMERA','WEATHER','ADSB','GATEWAY','SENSOR'," +
+                " 'RADAR','RADIO_DETECT','EO_TRACK','RADIO_JAM','LASER','NET_CAPTURE'));" +
+                " END $$",
+                "device.category 约束已放行反制设备类型");
     }
 
     private void tryExec(String sql, String okMsg) {

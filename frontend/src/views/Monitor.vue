@@ -91,13 +91,6 @@
                       @focus="focusDrone" @open="openDevice" @replay="startReplay" />
         </CollapsiblePanel>
 
-        <CollapsiblePanel v-model:collapsed="collapse.alerts" title="实时告警">
-          <template #badge>
-            <span class="title-badge badge-red">{{ overview.alertUnhandled ?? '-' }}</span>
-          </template>
-          <AlertPanel ref="alertPanelRef" />
-        </CollapsiblePanel>
-
         <CollapsiblePanel v-model:collapsed="collapse.sensors" title="物联网传感">
           <template #badge>
             <span class="title-badge">{{ sensorDevices.length }}</span>
@@ -145,14 +138,14 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, defineEmits } from 'vue'
 import http from '../api'
 import { createMap } from '../utils/mapAdapter'
-import { deviceSvg, resolveDeviceIcon, customDeviceIcon, parseFenceShapes } from '../utils/map'
+import { deviceSvg, resolveDeviceIcon, customDeviceIcon, parseFenceShapes, COUNTER_META, deviceMeta } from '../utils/map'
+import { pushAlert } from '../stores/alertCenter'
 import { getProviderId, getProviderMeta } from '../utils/mapProviders'
 import { Monitor, Aim, User, Bell, Location, Loading, FullScreen, Fold, Expand, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import CollapsiblePanel from '../components/CollapsiblePanel.vue'
 import MapToolbox from '../components/MapToolbox.vue'
 import DronePanel from '../components/DronePanel.vue'
-import AlertPanel from '../components/AlertPanel.vue'
 import SensorPanel from '../components/SensorPanel.vue'
 import VideoPanel from '../components/VideoPanel.vue'
 import AiCopilotBall from '../components/AiCopilotBall.vue'
@@ -172,9 +165,8 @@ const detailVisible = ref(false)
 const detail = ref(null)
 const fencesRef = ref([])
 const latestData = ref({})       // deviceId -> { fields, ts }
-const alertPanelRef = ref(null)
 const deviceDlg = reactive({ visible: false, device: null })
-const collapse = reactive({ drones: false, alerts: false, sensors: false, video: true })
+const collapse = reactive({ drones: false, sensors: false, video: true })
 
 /* 布局:右侧整栏统一收起 / 地图全屏 */
 const sideCollapsed = ref(false)
@@ -194,8 +186,9 @@ const replayOverlays = { full: null, done: null, marker: null }
 
 const drones = computed(() => devices.value.filter((d) => d.category === 'DRONE'))
 const cameraDevices = computed(() => devices.value.filter((d) => d.category === 'CAMERA'))
+// 反制设备属于布防装备,不进传感面板(地图上按分类图标+范围圈展示)
 const sensorDevices = computed(() =>
-  devices.value.filter((d) => !['DRONE', 'CAMERA'].includes(d.category)))
+  devices.value.filter((d) => !['DRONE', 'CAMERA', ...Object.keys(COUNTER_META)].includes(d.category)))
 const flyingList = computed(() => Object.values(flyingMap))
 
 /* 弹窗实时数据:WS 每 2s 整体替换 flyingMap 条目对象,detail 若只在点击时赋值会冻结成旧快照,
@@ -392,6 +385,7 @@ function drawDeviceMarkers() {
     if (entry && (entry.kind !== kind || entry.iconKey !== iconKey)) {
       entry.marker.destroy()
       entry.label.destroy()
+      if (entry.range) mapApi.remove(entry.range)
       overlays.devices.delete(d.id)
       entry = null
     }
@@ -402,7 +396,15 @@ function drawDeviceMarkers() {
       })
       const label = mapApi.addLabel({ lng: d.homeLng, lat: d.homeLat }, d.code,
         { dx: 20, dy: 26, css: DEVICE_LABEL_CSS('#475467'), onClick: () => openDevice(d) })
-      overlays.devices.set(d.id, { marker, label, kind, iconKey })
+      // 反制设备:按 scanRange 画虚线扫描范围圈(颜色取分类色)
+      let range = null
+      if (COUNTER_META[d.category] && d.scanRange) {
+        range = mapApi.addCircle({ lng: d.homeLng, lat: d.homeLat }, d.scanRange, {
+          color: deviceMeta(d.category).color, dashed: true, weight: 1.5,
+          fillOpacity: 0.05, opacity: 0.6
+        })
+      }
+      overlays.devices.set(d.id, { marker, label, range, kind, iconKey })
     }
   }
   // 清理已删除/已起飞设备
@@ -410,6 +412,7 @@ function drawDeviceMarkers() {
     if (!seen.has(id)) {
       entry.marker.destroy()
       entry.label.destroy()
+      if (entry.range) mapApi.remove(entry.range)
       overlays.devices.delete(id)
     }
   }
@@ -627,7 +630,7 @@ function connectWs() {
           loadOverview()
         }
       } else if (msg.type === 'alert') {
-        alertPanelRef.value?.onNewAlert(p)
+        pushAlert(p)          // 实时告警已移至顶栏铃铛(全局告警中心)
         loadOverview()
         if (p.lng && mapApi) {
           flashAlertPoint(p)

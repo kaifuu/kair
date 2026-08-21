@@ -95,7 +95,28 @@ export const DEVICE_META = {
   WEATHER: { label: '气象站', color: '#e04f16', glyph: 'weather' },
   ADSB: { label: 'ADS-B', color: '#3639a4', glyph: 'adsb' },
   GATEWAY: { label: 'PLC/网关', color: '#6c2bd9', glyph: 'gateway' },
-  SENSOR: { label: '传感设备', color: '#12b76a', glyph: 'sensor' }
+  SENSOR: { label: '传感设备', color: '#12b76a', glyph: 'sensor' },
+  // ---- 无人机反制设备 ----
+  RADAR: { label: '警戒雷达', color: '#dc6803', glyph: 'radar' },
+  RADIO_DETECT: { label: '无线电探测', color: '#0ba5ec', glyph: 'radiodetect' },
+  EO_TRACK: { label: '光电跟踪', color: '#0e9f6e', glyph: 'eo' },
+  RADIO_JAM: { label: '无线电压制', color: '#d92d20', glyph: 'jam' },
+  LASER: { label: '激光处置', color: '#e0004d', glyph: 'laser' },
+  NET_CAPTURE: { label: '网捕无人机', color: '#7a5af8', glyph: 'net' }
+}
+
+/**
+ * 反制设备元数据(设备管理表单默认值 / 攻防演练布防共用):
+ * role: detect=探测类 counter=反制类;defaultRange:类型默认扫描/作用范围 m;
+ * action/actText:反制类动作(JAM 驱离 / DESTROY 击落 / CAPTURE 捕获)
+ */
+export const COUNTER_META = {
+  RADAR: { label: '警戒雷达', role: 'detect', defaultRange: 5000, shape: 'circle' },
+  RADIO_DETECT: { label: '无线电探测', role: 'detect', defaultRange: 3500, shape: 'circle' },
+  EO_TRACK: { label: '光电跟踪', role: 'detect', defaultRange: 2500, shape: 'sector', eo: true },
+  RADIO_JAM: { label: '无线电压制', role: 'counter', defaultRange: 1800, action: 'JAM', actText: '压制驱离' },
+  LASER: { label: '激光处置', role: 'counter', defaultRange: 1000, action: 'DESTROY', actText: '激光击落' },
+  NET_CAPTURE: { label: '网捕无人机', role: 'counter', defaultRange: 1200, action: 'CAPTURE', actText: '网捕捕获' }
 }
 
 export const deviceMeta = (category) => DEVICE_META[category] || DEVICE_META.SENSOR
@@ -122,7 +143,31 @@ const DEVICE_GLYPHS = {
     <path d="M-1 1 A7 7 0 0 1 8 4" fill="none" stroke="${c}" stroke-width="2" opacity="0.9"/>
     <path d="M2 -2 A11.5 11.5 0 0 1 12 4" fill="none" stroke="${c}" stroke-width="2" opacity="0.55"/>
     <path d="M-12 4 A7 7 0 0 1 -6 -3" fill="none" stroke="${c}" stroke-width="2" opacity="0.9"/>
-    <path d="M-16 4 A11.5 11.5 0 0 1 -8 -6.5" fill="none" stroke="${c}" stroke-width="2" opacity="0.55"/>`
+    <path d="M-16 4 A11.5 11.5 0 0 1 -8 -6.5" fill="none" stroke="${c}" stroke-width="2" opacity="0.55"/>`,
+  // ---- 反制设备图形 ----
+  radar: (c) => `<path d="M-9 -8 A11 11 0 0 1 9 6" fill="none" stroke="${c}" stroke-width="2.4"/>
+    <path d="M-9 -8 A5.5 5.5 0 0 1 -2 -1" fill="none" stroke="${c}" stroke-width="2" opacity="0.7"/>
+    <path d="M0 -2 L6 9 M0 -2 L-2 9" stroke="${c}" stroke-width="2"/>
+    <circle cx="0" cy="-3" r="2.6" fill="${c}"/>`,
+  radiodetect: (c) => `<path d="M0 -10 L2.5 2 L-2.5 2 Z" fill="${c}"/>
+    <path d="M0 2 L0 9 M-5 9 H5" stroke="${c}" stroke-width="2"/>
+    <path d="M-4 -6 A8 8 0 0 0 -4 4" fill="none" stroke="${c}" stroke-width="1.8" opacity="0.8"/>
+    <path d="M4 -6 A8 8 0 0 1 4 4" fill="none" stroke="${c}" stroke-width="1.8" opacity="0.8"/>`,
+  eo: (c) => `<circle cx="0" cy="0" r="8.5" fill="none" stroke="${c}" stroke-width="2"/>
+    <path d="M0 -12 V-4 M0 4 V12 M-12 0 H-4 M4 0 H12" stroke="${c}" stroke-width="2"/>
+    <circle cx="0" cy="0" r="2" fill="${c}"/>`,
+  jam: (c) => `<path d="M-3 -9 L-1 3 L3 3 L1 -9 Z" fill="none" stroke="${c}" stroke-width="2"/>
+    <path d="M0 3 V10" stroke="${c}" stroke-width="2"/>
+    <path d="M5 -7 A9 9 0 0 1 8 1" fill="none" stroke="${c}" stroke-width="1.8" opacity="0.85"/>
+    <path d="M-5 -7 A9 9 0 0 0 -8 1" fill="none" stroke="${c}" stroke-width="1.8" opacity="0.85"/>
+    <path d="M-9 -10 L9 10" stroke="${c}" stroke-width="2.4" opacity="0.9"/>`,
+  laser: (c) => `<rect x="-8" y="-6" width="7" height="12" rx="2" fill="none" stroke="${c}" stroke-width="2"/>
+    <path d="M-1 0 L9 -7 M-1 0 L9 0 M-1 0 L9 7" stroke="${c}" stroke-width="1.8" opacity="0.85"/>
+    <circle cx="9" cy="0" r="1.8" fill="${c}"/>`,
+  net: (c) => `<g stroke="${c}" stroke-width="1.6" fill="none">
+      <path d="M-9 -6 H9 M-9 0 H9 M-9 6 H9 M-9 -9 V9 M0 -9 V9 M9 -9 V9" opacity="0.9"/>
+    </g>
+    <path d="M-11 -9 Q0 -14 11 -9" fill="none" stroke="${c}" stroke-width="2"/>`
 }
 
 /**

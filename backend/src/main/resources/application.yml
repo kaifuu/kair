@@ -60,6 +60,14 @@ ai:
   alert-assess: true      # 告警产生后自动异步研判(写回 aiAdvice)
   report-cron: "0 36 7 * * *"   # 态势日报每日 07:36 自动生成并发站内信
 
+# 攻防演练(核心防护区与敌机生成参数;坐标口径 BD-09)
+drill:
+  core-lng: 116.397        # 核心防护区中心经度
+  core-lat: 39.910         # 核心防护区中心纬度
+  core-radius: 800         # 核心防护区半径 m(闯入即最高级告警)
+  spawn-radius: 6000       # 敌机生成距离 m
+  target-radius: 1200      # 敌机意图抵达点散布半径 m
+
 # 低空威胁感知(传统算法实时判断,LLM 不进环路)
 threat:
   enabled: true

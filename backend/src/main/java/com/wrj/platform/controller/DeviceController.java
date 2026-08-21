@@ -149,6 +149,7 @@ public class DeviceController {
         if (body.getOrgId() != null) device.setOrgId(body.getOrgId());
         if (body.getModbusUnitId() != null) device.setModbusUnitId(body.getModbusUnitId());
         if (body.getVideoUrl() != null) device.setVideoUrl(body.getVideoUrl());
+        if (body.getScanRange() != null) device.setScanRange(body.getScanRange());
         if (body.getIcon() != null) device.setIcon(body.getIcon().isBlank() ? null : body.getIcon());
         device.setPilot(resolvePilot(body));
         device.setProtocol(resolveProtocol(body));

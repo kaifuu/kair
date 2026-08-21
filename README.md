@@ -6,6 +6,8 @@ A full-stack **drone / low-altitude airspace supervision platform** for governme
 
 Built with **Vue 3 + Spring Boot 3 + PostgreSQL/PostGIS**, a **switchable multi-engine map layer** (Baidu / AMap / Tianditu / custom XYZ tiles), a built-in **flight simulator**, and a **Netty device gateway** (binary TLV frames / DTU serial passthrough / Modbus TCP). Out of the box you can experience the full loop: *task approval → take-off → live situation → alert handling*, and *IoT device access → protocol parsing → history*.
 
+New: a **counter-UAS attack & defense drill** page — drag counter-drone units (radar / RF detection / EO tracking / RF jamming / laser / net-capture) onto the map, spawn hostile drones, watch detection → alert → **AI auto-guard** disposal, and lock targets through a dual-spectrum **EO tracking window**.
+
 ---
 
 ## Screenshots
@@ -22,19 +24,25 @@ Built with **Vue 3 + Spring Boot 3 + PostgreSQL/PostGIS**, a **switchable multi-
 | **Device management** — 7 device categories, custom map icons, history curves | **Map provider admin** — server-side key management for all four basemap engines |
 | ![Model Config](docs/screenshots/models.png) | ![Login](docs/screenshots/login.png) |
 | **LLM model config** — OpenAI-compatible endpoints, key stored server-side (masked in API responses) | **Login** — captcha + token auth |
+| ![Drill – running](docs/screenshots/drill-running.png) | ![EO window – locked](docs/screenshots/drill-eo-lock.png) |
+| **Attack & defense drill (running)** — hostile drones penetrate detection rings, live alerts stream in, AI auto-guard picks the right countermeasure with reasons | **EO tracking window** — dual-spectrum (daylight/thermal) HUD, slew-to-target, click to **LOCK**, boresight follows, engage via in-range counter units |
+| ![Drill – defense layout](docs/screenshots/drill-placed.png) | ![Tianditu engine](docs/screenshots/monitor-tdt.png) |
+| **Drill – defense layout** — counter-UAS units dragged onto the map, each with its type-specific scan range ring | **Monitoring on Tianditu** — official Chinese government basemap engine, fences & device overlays unchanged |
 
 ## Feature Overview
 
 | Module | Highlights |
 |--------|-----------|
-| Live monitoring | Multi-engine basemap; live drone position/heading, track lines, geofence rendering (circle/line/polygon); right column with **alerts (paged) / drones (online·offline tabs) / IoT sensors / video** — each panel collapsible, whole column collapsible, map fullscreen (Esc to exit); **track replay** with timeline & speed control for every drone (online = live, offline = last 3 days); all devices rendered as icons (custom icons configurable per device); click an icon for info + 60-min history curves; map toolbox: scale, basemap switcher, pan pad, eagle-eye minimap, 3D compass, distance & area measure — consistent across engines, state remembered |
+| Live monitoring | Multi-engine basemap; live drone position/heading, track lines, geofence rendering (circle/line/polygon); **live alerts in the top bar next to the clock** (bell with unread badge, dropdown panel, WebSocket push) plus right column with **drones (online·offline tabs) / IoT sensors / video** — each panel collapsible, whole column collapsible, map fullscreen (Esc to exit); **track replay** with timeline & speed control for every drone (online = live, offline = last 3 days); all devices rendered as icons (custom icons configurable per device); click an icon for info + 60-min history curves; map toolbox: scale, basemap switcher, pan pad, eagle-eye minimap, 3D compass, distance & area measure — consistent across engines, state remembered |
+| **Counter-UAS drill** | Attack & defense drill page: drag **6 counter-drone unit types** (warning radar / RF detection / EO tracking / RF jamming / laser / net-capture drone) onto the map — each with type-specific scan/effective range rings — or one-click layout; spawn 1–8 hostile drones (recon / racing quad) that penetrate rings: detection → identification (tracked) → **INTRUSION alerts**; manual disposal per drone (jam → drive off, laser → shoot down when tracked, net → capture) with cooldowns, or enable **AI auto-guard** and let the LLM choose countermeasures with reasons; speed control (1×/2×/4×), reinforcement waves, scoring & end summary (neutralized / escaped / avg response), drill history persisted |
+| **EO tracking window** | Dual-spectrum viewport (daylight / thermal) with 1×/2×/4× zoom HUD: azimuth ruler, boresight cross, range-scaled target boxes colored by status; SCAN auto-slues to the nearest target, click a box to select **and LOCK** — boresight smoothly tracks, four-corner brackets pulse, status flips to TRACKING; engage buttons appear for counter units whose range covers the target (laser requires tracked) |
 | Map admin | Server-side management of basemap providers: keys/styles/ordering per vendor (Baidu / AMap / Tianditu / custom XYZ), default source, enable/disable |
 | Drone management | Profiles CRUD, status machine (standby/flying/charging/maintenance/offline), pilot binding, home point |
 | Pilot management | License profiles, expiry tracking, flight-hour stats |
 | Flight tasks | Creation, approval flow (approve/reject), launch, abort, route picking on map |
 | Geofences | No-fly / restricted / operation zones; **circle / line / polygon drawn interactively on a fullscreen map** (click to add, move preview, double-click to finish; center+radius for circles; undo/clear), existing fences faintly shown for reference — no vendor DrawingManager, identical across all four engines; stored as **WGS-84 (4326) geometry** (Point/LineString/Polygon) with GiST index, BD-09 conversion at the API layer; point-in-fence API |
 | Protocol admin | Device protocol CRUD + **parse testing**: TLV (configurable length/endianness), fixed-offset slices, Modbus register mapping; values in bin/oct/dec/hex with sign/scale/endianness conversion |
-| Device access | 7 device categories (drone/nest/camera/weather/ADS-B/gateway/sensor), **custom map icons** (PNG/SVG upload); virtual devices fed by the built-in simulator, real devices via the **Netty gateway** (3 ports, see below); data persisted + pushed over WebSocket; flight telemetry stored every 4 s |
+| Device access | 7 IoT device categories (drone/nest/camera/weather/ADS-B/gateway/sensor) **+ 6 counter-UAS types** (warning radar / RF detection / EO tracking / RF jamming / laser / net-capture, each with a type-default scan range editable in the form), **custom map icons** (PNG/SVG upload); virtual devices fed by the built-in simulator, real devices via the **Netty gateway** (3 ports, see below); data persisted + pushed over WebSocket; flight telemetry stored every 4 s |
 | Video | HLS (m3u8) live playback for camera devices: server-side `/api/video/proxy` follows 302 temp tokens and rewrites playlist segment URLs (solves CORS); hls.js decode with native-HLS fallback; 4 public demo streams seeded |
 | Alerts | No-fly breach, altitude exceed, low battery, signal loss, unlicensed flight, overdue task **+ predictive/threat types below**; severity levels; handling workflow; paging |
 | Statistics | 7-day trends, model mix, alert types, pilot ranking (ECharts) |
